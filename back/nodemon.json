@@ -1,0 +1,10 @@
+{
+  "ignore": [
+    "*.pdf",
+    "node_modules",
+    "front/*",
+    "*.xlsx",
+    "logs/*"
+  ],
+  "delay": "2500"
+}

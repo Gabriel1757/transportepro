@@ -1,0 +1,2318 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transporte PRO — Admin</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="http://localhost:3001/socket.io/socket.io.js"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        primary: '#2563EB',
+        sidebar: '#0F172A',
+        surface: '#F8FAFC',
+        card: '#FFFFFF',
+      },
+      fontFamily: {
+        sans: ['Sora', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace'],
+      }
+    }
+  }
+}
+</script>
+<style>
+* { font-family: 'Sora', sans-serif; }
+body { background: #F0F4F8; transition: background-color 0.3s, color 0.3s; }
+body.dark { background: #020617; color: #f8fafc; }
+
+.sidebar { width: 240px; min-height: 100vh; background: #0F172A; flex-shrink: 0; transition: background-color 0.3s; }
+.sidebar-link {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 20px; border-radius: 10px; margin: 2px 12px;
+  font-size: 14px; font-weight: 500; cursor: pointer;
+  color: #94A3B8; transition: all 0.15s;
+}
+.sidebar-link:hover { background: rgba(255,255,255,0.05); color: #E2E8F0; }
+.sidebar-link.active { background: #2563EB; color: white; }
+.sidebar-link svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+.main-content { flex: 1; padding: 28px 32px; overflow-y: auto; min-height: 100vh; }
+.page { display: none; }
+.page.active { display: block; }
+
+.stat-card {
+  background: white; border-radius: 16px; padding: 20px 24px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.dark .stat-card, .dark .table-wrap, .dark .modal, .dark .cal-cell { background: #1e293b; border-color: #334155; color: #f1f5f9; }
+.dark .input-field { background: #0f172a; border-color: #334155; color: #f1f5f9; }
+.dark .value { color: #f1f5f9; }
+.dark .text-gray-900, .dark .text-gray-800 { color: #f8fafc !important; }
+.dark .text-gray-700, .dark .text-gray-600 { color: #cbd5e1 !important; }
+.dark .bg-slate-50 { background-color: #0f172a !important; }
+.dark .label, .dark .label-field, .dark .text-gray-500, .dark .text-slate-500 { color: #94a3b8 !important; }
+.dark thead th { background: #0f172a; border-bottom-color: #334155; color: #cbd5e1; }
+.stat-card .label { font-size: 12px; font-weight: 600; color: #6B7280; text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-card .value { font-size: 32px; font-weight: 800; color: #0F172A; line-height: 1.1; margin-top: 4px; }
+.stat-card .change { font-size: 12px; font-weight: 600; margin-top: 4px; }
+.stat-card .change.up { color: #10B981; }
+.stat-card .change.neutral { color: #6B7280; }
+
+.btn-primary {
+  background: #2563EB; color: white; border: none; border-radius: 10px;
+  padding: 10px 20px; font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: all 0.2s; display: inline-flex; align-items: center; gap-6px;
+  font-family: 'Sora', sans-serif;
+}
+.btn-primary:hover { background: #1D4ED8; transform: translateY(-1px); }
+.btn-sm { padding: 7px 14px; font-size: 13px; }
+.btn-danger { background: #EF4444; }
+.btn-danger:hover { background: #DC2626; }
+
+.table-wrap { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+table { width: 100%; border-collapse: collapse; }
+thead th { background: #F8FAFC; padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid #E2E8F0; }
+tbody td { padding: 13px 16px; font-size: 13px; color: #374151; border-bottom: 1px solid #F1F5F9; vertical-align: middle; }
+.dark tbody td { border-bottom-color: #334155; color: #cbd5e1; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: #F8FAFC; }
+.dark tbody tr:hover { background: #111827; }
+
+.badge-status {
+  display: inline-block; padding: 3px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 600;
+}
+.badge-blue { background: #EFF6FF; color: #2563EB; }
+.badge-green { background: #ECFDF5; color: #059669; }
+.badge-gray { background: #F3F4F6; color: #6B7280; }
+.badge-red { background: #FEE2E2; color: #EF4444; }
+
+.input-field {
+  border: 1.5px solid #E2E8F0; border-radius: 10px; padding: 10px 14px;
+  font-size: 14px; outline: none; background: #fff; color: #0F172A;
+  font-family: 'Sora', sans-serif; transition: border 0.2s;
+}
+.input-field:focus { border-color: #2563EB; }
+
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-hdr { text-align: center; font-size: 12px; font-weight: 600; color: #9CA3AF; padding: 6px 0; }
+.cal-cell {
+  min-height: 90px; background: white; border-radius: 10px; padding: 6px 8px;
+  border: 1.5px solid #F1F5F9; cursor: pointer; transition: all 0.15s;
+}
+.cal-cell:hover { border-color: #2563EB; background: #F0F7FF; }
+.cal-cell.today { border-color: #2563EB; background: #EFF6FF; }
+.cal-cell.other-month { background: #F9FAFB; opacity: 0.5; }
+.cal-day-num { font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 4px; }
+.cal-cell.today .cal-day-num { color: #2563EB; }
+.cal-pdf-dot { font-size: 10px; background: #EFF6FF; color: #2563EB; border-radius: 6px; padding: 1px 5px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #2563EB, #7C3AED); display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: none; align-items: center; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal { background: white; border-radius: 20px; padding: 28px; width: 540px; max-height: 85vh; overflow-y: auto; }
+
+.chart-bar { background: #EFF6FF; border-radius: 4px; position: relative; overflow: hidden; }
+.chart-fill { background: linear-gradient(to top, #2563EB, #60A5FA); border-radius: 4px; position: absolute; bottom: 0; left: 0; right: 0; transition: height 0.5s; }
+
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: #0F172A; color: white; padding: 12px 20px;
+  border-radius: 12px; font-size: 13px; font-weight: 500;
+  z-index: 9999; opacity: 0; transition: opacity 0.3s; box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+.toast.show { opacity: 1; }
+</style>
+</head>
+<body class="flex" style="min-height:100vh;">
+
+<!-- SIDEBAR -->
+<aside class="sidebar flex flex-col py-6">
+  <div class="px-6 mb-8">
+    <div class="flex items-center gap-3 mb-1">
+      <div class="w-9 h-9 bg-primary rounded-xl flex items-center justify-center">
+        <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.8"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+      </div>
+      <div>
+        <p class="text-white font-bold text-sm leading-tight">Transporte</p>
+        <p class="text-blue-400 font-bold text-sm leading-tight">PRO</p>
+      </div>
+    </div>
+    <p class="text-slate-500 text-xs mt-1">Painel Administrador</p>
+  </div>
+
+  <nav class="flex-1 space-y-0.5">
+    <div class="sidebar-link active" id="nav-dashboard" onclick="goPage('dashboard')">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </div>
+    <div class="sidebar-link" id="nav-registros" onclick="goPage('registros')">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      Embarques/Entregas
+    </div>
+    <div class="sidebar-link" id="nav-clientes" onclick="goPage('clientes')">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg>
+      Clientes
+    </div>
+    <div class="sidebar-link" id="nav-veiculos" onclick="goPage('veiculos')">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+      Frota/Veículos
+    </div>
+    <div class="sidebar-link" id="nav-contratos" onclick="goPage('contratos')">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="m16 13-3.5 3.5-1.5-1.5"/></svg>
+      Contratos
+    </div>
+    <div class="sidebar-link" id="nav-orcamentos" onclick="goPage('orcamentos')">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
+      Cotações
+    </div>
+    <div class="sidebar-link" id="nav-calendario" onclick="goPage('calendario')">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Agenda
+    </div>
+    <div class="sidebar-link" id="nav-motoristas" onclick="goPage('motoristas')">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Funcionários
+    </div>
+    <div class="sidebar-link" id="nav-vistorias" onclick="goPage('vistorias')">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Vistorias
+    </div>
+    <div class="sidebar-link" id="nav-documentos" onclick="goPage('documentos')">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M7 21h10a2 2 0 0 0 2-2V9.414a1 1 0 0 0-.293-.707l-5.414-5.414A1 1 0 0 0 12.586 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2z"/><polyline points="9 9 9 15 12 12 15 15 15 9"/></svg>
+      Documentos
+    </div>
+    <div class="sidebar-link" id="nav-financeiro" onclick="goPage('financeiro')">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg>
+      Financeiro
+    </div>
+    <div class="sidebar-link" id="nav-seguros" onclick="goPage('seguros')">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Seguros
+    </div>
+    <div class="sidebar-link" id="nav-rastreamento" onclick="goPage('rastreamento')">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      Rastreamento
+    </div>
+    <div class="sidebar-link" id="nav-mensagens" onclick="goPage('mensagens')">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-5l-5 5v-5z"/></svg>
+      Mensagens
+    </div>
+    <div class="sidebar-link" id="nav-relatorios" onclick="goPage('relatorios')">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Relatórios
+    </div>
+    <div class="sidebar-link mt-8" onclick="toggleDarkMode()">
+      <svg id="theme-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <span id="theme-text">Modo Escuro</span>
+    </div>
+  </nav>
+
+  <div class="px-4 mt-4">
+    <div class="flex items-center gap-3 p-3 bg-slate-800 rounded-12px">
+      <div class="avatar" style="width:36px;height:36px;font-size:14px;">A</div>
+      <div class="flex-1 min-w-0">
+        <p class="text-white text-xs font-semibold leading-tight">Admin</p>
+        <p class="text-slate-400 text-xs">admin@transp.com</p>
+      </div>
+    </div>
+    <a href="motorista.html" class="flex items-center gap-2 mt-3 px-3 py-2 text-slate-400 text-xs hover:text-white transition-colors">
+      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 18.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13z"/><path d="M12 2v2m0 16v2m10-10h-2M4 12H2"/></svg>
+      Ver App Motorista
+    </a>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main-content">
+
+  <!-- PAGE: DASHBOARD -->
+  <div id="page-dashboard" class="page active">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <p class="text-gray-500 text-sm">Bem-vindo de volta, Gabriel</p>
+      </div>
+      <button class="btn-primary" onclick="goPage('registros'); setTimeout(()=>document.getElementById('modal-novo').classList.add('open'),100)">
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Novo Registro
+      </button>
+    </div>
+
+    <div class="grid grid-cols-4 gap-4 mb-6">
+      <div class="stat-card">
+        <p class="label">Entregas Hoje</p>
+        <p class="value" id="stat-hoje">0</p>
+        <p class="change neutral">operacional</p>
+      </div>
+      <div class="stat-card">
+        <p class="label">Em Rota</p>
+        <p class="value" id="stat-transito">0</p>
+        <p class="change neutral">operacional</p>
+      </div>
+      <div class="stat-card">
+        <p class="label">Vistorias Hoje</p>
+        <p class="value" id="stat-vistorias">0</p>
+        <p class="change neutral">indicador</p>
+      </div>
+      <div class="stat-card">
+        <p class="label">Saldo Geral</p>
+        <p class="value text-xl" id="stat-financeiro" style="font-size: 24px;">R$ 0,00</p>
+        <p class="change neutral">financeiro</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-3 gap-4">
+      <div class="col-span-2 table-wrap">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h3 class="font-bold text-gray-800">Status em Tempo Real</h3>
+          <button class="text-sm text-primary font-semibold" onclick="goPage('registros')">Ver todos</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Motorista</th>
+              <th>Veículo</th>
+              <th>Origem → Destino</th>
+              <th>Status</th>
+              <th>Data</th>
+            </tr>
+          </thead>
+          <tbody id="dash-recent-table">
+            <tr><td colspan="4" class="text-center text-gray-400 py-8">Nenhum registro encontrado</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-wrap" style="padding:20px;">
+        <h3 class="font-bold text-gray-800 mb-4">PDFs por Dia (últimos 7 dias)</h3>
+        <div class="flex items-end gap-2 h-32" id="mini-chart"></div>
+        <div class="flex gap-1 mt-2" id="mini-chart-labels" style="padding-left:2px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE: REGISTROS -->
+  <div id="page-registros" class="page">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Gestão de Embarques</h1>
+        <p class="text-gray-500 text-sm">Controle de saídas e entregas em tempo real</p>
+      </div>
+      <button class="btn-primary" onclick="document.getElementById('modal-novo').classList.add('open')">
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Novo Registro
+      </button>
+    </div>
+
+    <div class="flex items-center gap-3 mb-4">
+      <div class="relative flex-1">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input class="input-field w-full" style="padding-left:38px;" placeholder="Buscar por motorista, placa, destino..." id="reg-search" oninput="filtrarRegistros()">
+      </div>
+      <input class="input-field" type="month" id="reg-filter-mes" onchange="filtrarRegistros()">
+      <button class="btn-primary btn-sm" onclick="exportarExcel()">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="margin-right:4px"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h10l4 4v12a2 2 0 0 1-2 2z"/><path d="M9 15l2 2 4-4"/></svg>
+        Excel
+      </button>
+      <button class="btn-primary btn-sm bg-green-600 hover:bg-green-700" onclick="exportarTodosPDFs()">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Exportar
+      </button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Motorista</th>
+            <th>Placa</th>
+            <th>Origem</th>
+            <th>Destino</th>
+            <th>Status</th>
+            <th>Data</th>
+            <th>Horário</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="registros-table">
+          <tr><td colspan="7" class="text-center text-gray-400 py-8">Nenhum registro encontrado</td></tr>
+        </tbody>
+      </table>
+      <div class="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
+        <p class="text-sm text-gray-500" id="reg-count">0 registros</p>
+        <div class="flex items-center gap-2" id="reg-pagination"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE: CLIENTES -->
+  <div id="page-clientes" class="page">
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl font-bold text-gray-900">Clientes</h1>
+      <button class="btn-primary" onclick="openModalGenerico('cliente')">Cadastrar Cliente</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Razão Social</th><th>CNPJ</th><th>Contato</th><th>Cidade</th><th>Ações</th></tr></thead>
+        <tbody id="clientes-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PAGE: VEICULOS -->
+  <div id="page-veiculos" class="page">
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl font-bold text-gray-900">Frota de Veículos</h1>
+      <button class="btn-primary" onclick="openModalGenerico('veiculo')">Adicionar Veículo</button>
+    </div>
+    <div class="table-wrap">
+      <table class="w-full">
+        <thead><tr><th>Placa</th><th>Modelo</th><th>Tipo</th><th>Capacidade</th><th>Localização</th><th>Status</th><th>Ações</th></tr></thead>
+        <tbody id="veiculos-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PAGE: CONTRATOS -->
+  <div id="page-contratos" class="page">
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl font-bold text-gray-900">Gestão de Contratos</h1>
+      <button class="btn-primary" onclick="openModalGenerico('contrato')">Novo Contrato</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Contrato №</th><th>Cliente</th><th>Vigência</th><th>Valor Mensal</th><th>Status</th></tr></thead>
+        <tbody id="contratos-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PAGE: ORÇAMENTOS -->
+  <div id="page-orcamentos" class="page">
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl font-bold text-gray-900">Cotações e Orçamentos</h1>
+      <div class="flex gap-2">
+        <button class="btn-primary" style="background:#7C3AED" onclick="abrirCalculadoraFrete()">Calculadora de Frete</button>
+        <button class="btn-primary" onclick="openModalGenerico('orcamento')">Nova Cotação</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="orcamentos-table"><thead><tr><th>Data</th><th>Cliente</th><th>Rota</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+
+  <!-- PAGE: CALENDÁRIO -->
+  <div id="page-calendario" class="page">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Calendário</h1>
+        <p class="text-gray-500 text-sm">Visualize os PDFs por dia</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <button onclick="changeAdminMonth(-1)" class="w-9 h-9 bg-white border border-gray-200 rounded-10px flex items-center justify-center hover:bg-gray-50">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <span class="font-semibold text-gray-800" id="admin-cal-label"></span>
+        <button onclick="changeAdminMonth(1)" class="w-9 h-9 bg-white border border-gray-200 rounded-10px flex items-center justify-center hover:bg-gray-50">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+        <button class="btn-primary btn-sm" onclick="irHoje()">Hoje</button>
+      </div>
+    </div>
+    <div class="bg-white rounded-16px p-4 shadow-sm">
+      <div class="cal-grid mb-2">
+        <div class="cal-hdr">SEG</div><div class="cal-hdr">TER</div><div class="cal-hdr">QUA</div>
+        <div class="cal-hdr">QUI</div><div class="cal-hdr">SEX</div><div class="cal-hdr">SAB</div><div class="cal-hdr">DOM</div>
+      </div>
+      <div class="cal-grid" id="admin-cal-grid"></div>
+    </div>
+    <!-- Day detail panel -->
+    <div id="cal-detail" class="mt-4 table-wrap" style="display:none;">
+      <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+        <h3 class="font-bold text-gray-800" id="cal-detail-title">PDFs do dia</h3>
+        <button onclick="document.getElementById('cal-detail').style.display='none'" class="text-gray-400 hover:text-gray-600">✕</button>
+      </div>
+      <table>
+        <thead><tr><th>ID</th><th>Motorista</th><th>Placa</th><th>Origem → Destino</th><th>Carga</th><th>Ações</th></tr></thead>
+        <tbody id="cal-detail-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PAGE: VISTORIAS -->
+  <div id="page-vistorias" class="page">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Histórico de Vistorias</h1>
+        <p class="text-gray-500 text-sm">Inspeções técnicas e checklists de frota</p>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Veículo</th><th>Motorista</th><th>Data/Hora</th><th>Status</th><th>Ações</th></tr></thead>
+        <tbody id="vistorias-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PAGE: DOCUMENTOS -->
+  <div id="page-documentos" class="page">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Documentos Fiscais</h1>
+        <p class="text-gray-500 text-sm">Gestão de CT-e, MDF-e e Uploads</p>
+      </div>
+      <div class="flex gap-2">
+        <div class="relative mr-2">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input class="input-field w-64" style="padding-left:38px;" placeholder="Filtrar documentos..." id="doc-search" oninput="renderDocumentos()">
+        </div>
+        <button class="btn-primary btn-sm" onclick="openModalEmissao('CT-e')">Emitir CT-e</button>
+        <button class="btn-primary btn-sm" style="background:#10B981" onclick="openModalEmissao('MDF-e')">Emitir MDF-e</button>
+      </div>
+    </div>
+    
+    <div class="grid grid-cols-4 gap-4 mb-6">
+      <div class="stat-card" style="padding:16px">
+        <p class="label">CT-e Emitidos</p>
+        <p class="value text-2xl" id="count-cte">0</p>
+      </div>
+      <div class="stat-card" style="padding:16px">
+        <p class="label">MDF-e Emitidos</p>
+        <p class="value text-2xl" id="count-mdfe">0</p>
+      </div>
+      <div class="stat-card" style="padding:16px">
+        <p class="label">Arquivos Uploaded</p>
+        <p class="value text-2xl" id="count-uploads">0</p>
+      </div>
+      <div class="stat-card" style="padding:16px">
+        <p class="label">Total Processado</p>
+        <p class="value text-2xl" id="count-total-docs">0</p>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Tipo</th><th>Número/Chave</th><th>Emissor/Motorista</th><th>Data</th><th>Status</th><th>Ações</th></tr></thead>
+        <tbody id="documentos-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PAGE: FINANCEIRO -->
+  <div id="page-financeiro" class="page">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Financeiro</h1>
+        <p class="text-gray-500 text-sm">Controle de receitas, despesas e fluxo de caixa</p>
+      </div>
+      <button class="btn-primary" onclick="openModalGenerico('financeiro')">Nova Transação</button>
+    </div>
+
+    <div class="grid grid-cols-3 gap-4 mb-6">
+      <div class="stat-card">
+        <p class="label">Saldo em Conta</p>
+        <p class="value" id="fin-saldo">R$ 0,00</p>
+      </div>
+      <div class="stat-card">
+        <p class="label">Receitas (Mês)</p>
+        <p class="value text-green-600" id="fin-receitas">R$ 0,00</p>
+      </div>
+      <div class="stat-card">
+        <p class="label">Despesas (Mês)</p>
+        <p class="value text-red-600" id="fin-despesas">R$ 0,00</p>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Tipo</th><th>Categoria</th><th>Descrição</th><th>Valor</th><th>Data</th><th>Ações</th></tr></thead>
+        <tbody id="financeiro-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PAGE: SEGUROS -->
+  <div id="page-seguros" class="page">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Seguros</h1>
+        <p class="text-gray-500 text-sm">Controle de apólices e averbações de carga</p>
+      </div>
+      <button class="btn-primary" onclick="openModalGenerico('apolice')">Nova Apólice</button>
+    </div>
+
+    <h2 class="text-lg font-bold text-gray-800 mb-3">Apólices Ativas</h2>
+    <div class="table-wrap mb-8">
+      <table>
+        <thead>
+          <tr>
+            <th>Seguradora</th>
+            <th>Apólice №</th>
+            <th>Tipo</th>
+            <th>Vigência</th>
+            <th>Limite de Cobertura</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="apolices-table"></tbody>
+      </table>
+    </div>
+
+    <h2 class="text-lg font-bold text-gray-800 mb-3">Histórico de Averbações Automáticas</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID Embarque</th>
+            <th>Protocolo Averbação</th>
+            <th>Valor Averbar</th>
+            <th>Data/Hora</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="averbacoes-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PAGE: MENSAGENS -->
+  <div id="page-mensagens" class="page">
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl font-bold text-gray-900">Mensagens dos Motoristas</h1>
+    </div>
+    <div class="grid grid-cols-3 gap-6" style="height: 600px;">
+      <div class="table-wrap overflow-y-auto">
+        <div class="p-4 border-b font-bold text-xs text-gray-400 uppercase">Conversas Ativas</div>
+        <div id="admin-chat-list" class="divide-y divide-gray-50"></div>
+      </div>
+      <div class="col-span-2 table-wrap flex flex-col">
+        <div id="admin-chat-header" class="p-4 border-b font-bold text-gray-800">Selecione um motorista para conversar</div>
+        <div id="admin-chat-window" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50"></div>
+        <div class="p-4 border-t flex gap-2">
+          <input id="admin-chat-input" class="input-field flex-1" placeholder="Digite uma resposta..." onkeyup="if(event.key==='Enter') enviarMsgAdmin()">
+          <button class="btn-primary" onclick="enviarMsgAdmin()">Enviar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE: RASTREAMENTO -->
+  <div id="page-rastreamento" class="page">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Monitoramento de Frota</h1>
+        <p class="text-gray-500 text-sm">Localização em tempo real e histórico de rotas</p>
+      </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <div class="lg:col-span-2 card p-0 overflow-hidden relative" style="height: 450px;">
+        <div id="map" class="w-full h-full"></div>
+      </div>
+      <div class="flex flex-col gap-4">
+        <div class="table-wrap flex-1 overflow-y-auto" style="max-height: 450px;">
+          <div class="p-4 border-b border-gray-100 font-bold text-xs text-gray-400 uppercase tracking-widest">Veículos em Rota</div>
+          <div id="rastreamento-lista" class="divide-y divide-gray-50"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: GENERICO (Cadastro de Clientes/Veículos) -->
+  <div class="modal-overlay" id="modal-generico">
+    <div class="modal" id="modal-generico-container">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-lg font-bold text-gray-900" id="gen-title">Novo Item</h3>
+        <button onclick="document.getElementById('modal-generico').classList.remove('open')" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+      </div>
+      <div id="gen-content" class="grid grid-cols-1 gap-4"></div>
+      <div class="flex justify-end gap-3 mt-5">
+        <button class="btn-primary" style="background:#F3F4F6;color:#374151;" onclick="document.getElementById('modal-generico').classList.remove('open')">Cancelar</button>
+        <button class="btn-primary" id="gen-save-btn">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE: MOTORISTAS -->
+  <div id="page-motoristas" class="page">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Funcionários</h1>
+        <p class="text-gray-500 text-sm">Gestão de colaboradores e salários</p>
+      </div>
+      <button class="btn-primary" onclick="abrirModalCadastrarFuncionario()">Cadastrar Funcionário</button>
+    </div>
+    <div class="relative mb-4">
+      <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input class="input-field w-full" style="max-width:400px;padding-left:38px;" placeholder="Buscar motorista..." id="mot-search" oninput="filtrarMotoristas()">
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Funcionário</th>
+            <th>E-mail</th>
+            <th>Cargo / Função</th>
+            <th>Salário Mensal</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="motoristas-table">
+          <tr><td colspan="5" class="text-center text-gray-400 py-8">Nenhum motorista cadastrado</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PAGE: RELATÓRIOS -->
+  <div id="page-relatorios" class="page">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Relatórios</h1>
+        <p class="text-gray-500 text-sm">Gere relatórios e análises</p>
+      </div>
+      <div class="flex gap-3">
+        <input class="input-field" type="date" id="rel-de" placeholder="De">
+        <input class="input-field" type="date" id="rel-ate" placeholder="Até">
+        <select class="input-field" id="rel-motorista">
+          <option value="">Todos motoristas</option>
+        </select>
+        <button class="btn-primary" onclick="gerarRelatorio()">Gerar Relatório</button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-4 gap-4 mb-6">
+      <div class="stat-card">
+        <p class="label">Total Viagens</p>
+        <p class="value text-2xl" id="rel-total">0</p>
+      </div>
+      <div class="stat-card">
+        <p class="label">Peso Total (kg)</p>
+        <p class="value text-2xl" id="rel-peso-total">0</p>
+      </div>
+      <div class="stat-card">
+        <p class="label">Viagens/Motorista</p>
+        <p class="value text-2xl" id="rel-produtividade">0</p>
+      </div>
+      <div class="stat-card">
+        <p class="label">Taxa de Conclusão</p>
+        <p class="value text-2xl" id="rel-eficiencia">0%</p>
+      </div>
+    </div>
+
+    <div class="table-wrap mb-6">
+      <div class="px-5 py-4 border-b border-gray-100">
+        <h3 class="font-bold text-gray-800">PDFs por Dia</h3>
+      </div>
+      <div class="px-5 py-6">
+        <div class="flex items-end gap-1" id="rel-chart" style="height:100px;"></div>
+        <div class="flex gap-1 mt-2" id="rel-chart-labels"></div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-6 mb-6">
+      <div class="table-wrap">
+        <div class="px-5 py-4 border-b border-gray-100"><h3 class="font-bold text-gray-800">Produtividade por Motorista</h3></div>
+        <table id="rel-prod-table">
+          <thead><tr><th>Motorista</th><th>Viagens</th><th>Eficiência</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="table-wrap">
+        <div class="px-5 py-4 border-b border-gray-100"><h3 class="font-bold text-gray-800">Performance Financeira</h3></div>
+        <div class="p-6 flex flex-col gap-4">
+          <div class="flex justify-between items-center">
+            <span class="text-sm text-gray-500">Receita Total</span>
+            <span class="text-lg font-bold text-green-600" id="rel-fin-rec">R$ 0,00</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-sm text-gray-500">Custos Operacionais</span>
+            <span class="text-lg font-bold text-red-600" id="rel-fin-des">R$ 0,00</span>
+          </div>
+          <div class="h-px bg-gray-100 w-full"></div>
+          <div class="flex justify-between items-center">
+            <span class="font-bold text-gray-900">Margem Líquida</span>
+            <span class="text-xl font-extrabold text-primary" id="rel-fin-margem">R$ 0,00</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+        <h3 class="font-bold text-gray-800">Detalhes do Relatório</h3>
+        <button class="btn-primary btn-sm" onclick="exportarRelatorio()">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Exportar Relatório
+        </button>
+      </div>
+      <table>
+        <thead><tr><th>ID</th><th>Motorista</th><th>Placa</th><th>Origem → Destino</th><th>Carga</th><th>Data</th></tr></thead>
+        <tbody id="rel-table"><tr><td colspan="6" class="text-center text-gray-400 py-8">Gere um relatório para ver os dados</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<!-- MODAL: NOVO REGISTRO (Admin) -->
+<div class="modal-overlay" id="modal-novo">
+  <div class="modal" style="width:580px;">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-lg font-bold text-gray-900">Novo Registro</h3>
+      <button onclick="document.getElementById('modal-novo').classList.remove('open')" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="text-xs font-semibold text-gray-500 block mb-1">Motorista</label>
+        <input class="input-field w-full" id="m-motorista" placeholder="Nome do motorista">
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-500 block mb-1">Veículo / Placa</label>
+        <input class="input-field w-full" id="m-placa" placeholder="ABC-1234">
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-500 block mb-1">Transportadora</label>
+        <input class="input-field w-full" id="m-transportadora" placeholder="Nome da transportadora">
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-500 block mb-1">Data</label>
+        <input class="input-field w-full" id="m-data" type="date">
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-500 block mb-1">Etapa Atual</label>
+        <select class="input-field w-full" id="m-status">
+          <option value="Saída">Saída</option>
+          <option value="Trânsito">Trânsito</option>
+          <option value="Transbordo">Transbordo</option>
+          <option value="Finalizada">Finalizada</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-500 block mb-1">Origem</label>
+        <input class="input-field w-full" id="m-origem" placeholder="Cidade / Estado">
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-500 block mb-1">Destino</label>
+        <input class="input-field w-full" id="m-destino" placeholder="Cidade / Estado">
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-500 block mb-1">Carga</label>
+        <input class="input-field w-full" id="m-carga" placeholder="Descrição da carga">
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-500 block mb-1">Peso (kg)</label>
+        <input class="input-field w-full" id="m-peso" type="number" placeholder="0000">
+      </div>
+      <div class="col-span-2">
+        <label class="text-xs font-semibold text-gray-500 block mb-1">Observações</label>
+        <textarea class="input-field w-full" id="m-obs" rows="2" style="resize:none;" placeholder="Observações adicionais"></textarea>
+      </div>
+    </div>
+    <div class="flex justify-end gap-3 mt-5">
+      <button class="btn-primary" style="background:#F3F4F6;color:#374151;" onclick="document.getElementById('modal-novo').classList.remove('open')">Cancelar</button>
+      <button class="btn-primary" onclick="salvarRegistroAdmin()">Salvar e Gerar PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: CALCULADORA DE FRETE -->
+<div class="modal-overlay" id="modal-calculadora">
+  <div class="modal" style="width:750px;">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-lg font-bold text-gray-900">Calculadora de Custos e Frete</h3>
+      <button onclick="document.getElementById('modal-calculadora').classList.remove('open')" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+    </div>
+    
+    <div class="grid grid-cols-3 gap-4">
+      <div class="col-span-1 space-y-3">
+        <label class="label-field !mb-0 text-primary font-bold">Nº do Cálculo / Simulação</label>
+        <input class="input-field w-full border-blue-200" id="calc-numero" placeholder="Ex: 001">
+        <label class="label-field !mb-0 text-primary font-bold">Cliente</label>
+        <input class="input-field w-full border-blue-200" id="calc-cliente" placeholder="Ex: Transportes Silva">
+        <label class="label-field !mb-0 text-primary font-bold">Descrição / Referência</label>
+        <input class="input-field w-full" id="calc-descricao" placeholder="Ex: Rota SP-RJ / Carga Especial">
+        <p class="text-xs font-bold text-primary uppercase">Seguro e Veículo</p>
+        <label class="label-field !mb-0">Valor do Veículo</label>
+        <input class="input-field w-full" id="calc-veiculo" placeholder="R$ 0,00" oninput="mascaraMoeda(this); calcularFrete()">
+        <label class="label-field !mb-0">Taxa RCTR-C</label>
+        <input class="input-field w-full" id="calc-taxa" placeholder="Ex: 0,001" oninput="calcularFrete()">
+        
+        <p class="text-xs font-bold text-primary uppercase mt-4">Operacional</p>
+        <label class="label-field !mb-0">Vaga 1 / Vaga 2 / Vaga 3</label>
+        <div class="flex gap-1">
+          <input class="input-field w-full" id="calc-vaga1" placeholder="V1" oninput="mascaraMoeda(this); calcularFrete()">
+          <input class="input-field w-full" id="calc-vaga2" placeholder="V2" oninput="mascaraMoeda(this); calcularFrete()">
+          <input class="input-field w-full" id="calc-vaga3" placeholder="V3" oninput="mascaraMoeda(this); calcularFrete()">
+        </div>
+      </div>
+
+      <div class="col-span-1 space-y-3">
+        <p class="text-xs font-bold text-primary uppercase">Custos Logísticos</p>
+        <label class="label-field !mb-0">Coleta / Entrega</label>
+        <div class="flex gap-2">
+          <input class="input-field w-full" id="calc-coleta" placeholder="Coleta" oninput="mascaraMoeda(this); calcularFrete()">
+          <input class="input-field w-full" id="calc-entrega" placeholder="Entrega" oninput="mascaraMoeda(this); calcularFrete()">
+        </div>
+        <label class="label-field !mb-0">Guincho / Pátio</label>
+        <div class="flex gap-2">
+          <input class="input-field w-full" id="calc-guincho" placeholder="Guincho" oninput="mascaraMoeda(this); calcularFrete()">
+          <input class="input-field w-full" id="calc-patio" placeholder="Pátio" oninput="mascaraMoeda(this); calcularFrete()">
+        </div>
+        <label class="label-field !mb-0">Outros / Documento</label>
+        <div class="flex gap-2">
+          <input class="input-field w-full" id="calc-outros" placeholder="Outros" oninput="mascaraMoeda(this); calcularFrete()">
+          <input class="input-field w-full" id="calc-doc" placeholder="Doc" oninput="mascaraMoeda(this); calcularFrete()">
+        </div>
+        <label class="label-field !mb-0"><b>Valor do Frete</b></label>
+        <input class="input-field w-full border-primary" id="calc-frete" placeholder="R$ 0,00" oninput="mascaraMoeda(this); calcularFrete()">
+      </div>
+
+      <div class="col-span-1 bg-slate-50 p-4 rounded-16px space-y-4">
+        <p class="text-xs font-bold text-gray-500 uppercase">Resumo Financeiro</p>
+        <div><p class="text-[10px] text-gray-400 font-bold uppercase">Seguro</p><p class="font-bold text-gray-700" id="res-seguro">R$ 0,00</p></div>
+        <div><p class="text-[10px] text-gray-400 font-bold uppercase">Total de Custos</p><p class="font-bold text-red-500" id="res-total-custos">R$ 0,00</p></div>
+        <div><p class="text-[10px] text-gray-400 font-bold uppercase">Imposto (NF-e 5%)</p><p class="font-bold text-orange-500" id="res-nfe">R$ 0,00</p></div>
+        <div class="pt-2 border-t border-gray-200"><p class="text-[10px] text-gray-400 font-bold uppercase">Lucro Bruto</p><p class="text-xl font-extrabold text-gray-800" id="res-lucro">R$ 0,00</p></div>
+        <div><p class="text-[10px] text-blue-600 font-bold uppercase">Lucro Líquido (Faturamento)</p><p class="text-2xl font-black text-primary" id="res-lucro-fat">R$ 0,00</p></div>
+      </div>
+    </div>
+    <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
+      <button class="btn-primary" style="background:#F3F4F6;color:#374151;" onclick="document.getElementById('modal-calculadora').classList.remove('open')">Fechar</button>
+      <button class="btn-primary" style="background:#10B981" onclick="salvarCalculoComoOrcamento()">Salvar em Cotações</button>
+      <button class="btn-primary" onclick="gerarPDFFrete()">Visualizar PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: VER PDF -->
+<div class="modal-overlay" id="modal-ver">
+  <div class="modal">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-900">Detalhes do Registro</h3>
+      <button onclick="document.getElementById('modal-ver').classList.remove('open')" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+    </div>
+    <div id="modal-ver-content" class="space-y-3"></div>
+    <div class="flex gap-3 mt-5">
+      <button class="btn-primary flex-1" onclick="baixarPDFModal()">
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="margin-right:6px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Baixar PDF
+      </button>
+      <button class="btn-primary flex-1" style="background:#10B981;" onclick="atualizarStatusRegistro()">Salvar Status</button>
+      <button class="btn-primary" style="background:#F3F4F6;color:#374151;" onclick="document.getElementById('modal-ver').classList.remove('open')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Storage ──────────────────────────────────────────────────
+function getStorage(key, def) { try { return JSON.parse(localStorage.getItem(key)) ?? def; } catch { return def; } }
+function setStorage(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ── State ────────────────────────────────────────────────────
+let adminCalYear = new Date().getFullYear();
+let adminCalMonth = new Date().getMonth();
+let currentViewId = null;
+let regPage = 0;
+const PAGE_SIZE = 10;
+
+const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+// ── Nav ───────────────────────────────────────────────────────
+let socket = io('http://localhost:3001');
+socket.emit('join_room', 'admin');
+socket.on('receive_message', (data) => {
+  // Recarrega se a mensagem pertencer à conversa aberta ou atualiza a lista lateral
+  if (currentViewId === 'mensagens' && selectedChatMotoristaId && 
+     (String(data.remetente_id) === String(selectedChatMotoristaId) || String(data.destinatario_id) === String(selectedChatMotoristaId))) {
+    selecionarChat(selectedChatMotoristaId, "Atualizando...");
+  } else if (currentViewId === 'mensagens') {
+    renderMensagensAdmin(); 
+  }
+  showToast('Nova mensagem recebida!');
+});
+
+async function goPage(name) {
+  currentViewId = name;
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+  document.getElementById('nav-' + name).classList.add('active');
+
+  if (['dashboard', 'motoristas', 'mensagens', 'financeiro'].includes(name)) await carregarUsuarios();
+
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'registros') { regPage = 0; filtrarRegistros(); }
+  if (name === 'calendario') renderAdminCal();
+  if (name === 'motoristas') renderMotoristas();
+  if (name === 'clientes') renderClientes();
+  if (name === 'veiculos') renderVeiculos();
+  if (name === 'contratos') renderContratos();
+  if (name === 'orcamentos') renderOrcamentos();
+  if (name === 'vistorias') renderVistorias();
+  if (name === 'documentos') renderDocumentos();
+  if (name === 'financeiro') renderFinanceiro();
+  if (name === 'rastreamento') { renderRastreamento(); initMap(); }
+  if (name === 'seguros') renderSeguros();
+  if (name === 'mensagens') renderMensagensAdmin();
+  if (name === 'relatorios') initRelatorios();
+}
+
+async function carregarUsuarios() {
+  try {
+    const res = await fetch('http://localhost:3001/api/usuarios');
+    const data = await res.json();
+    setStorage('tp_users', data);
+  } catch (err) {
+    console.error('Erro ao carregar usuários:', err);
+  }
+}
+
+// Sincronização em tempo real entre abas (Admin <-> Motorista)
+window.addEventListener('storage', (e) => {
+  // Impede que atualizações de usuários ou temas criem loops infinitos
+  if (e.key === 'tp_users' || e.key === 'tp_theme') return;
+  
+  const activePage = document.querySelector('.sidebar-link.active')?.id.replace('nav-', '');
+  // Só renderiza se estiver de fato no dashboard para evitar processamento desnecessário
+  if (activePage === 'dashboard') renderDashboard();
+  if (activePage === 'registros') filtrarRegistros();
+});
+
+let selectedChatMotoristaId = null;
+
+function toggleDarkMode() {
+  document.body.classList.toggle('dark');
+  const isDark = document.body.classList.contains('dark');
+  localStorage.setItem('tp_theme', isDark ? 'dark' : 'light');
+  document.getElementById('theme-text').textContent = isDark ? 'Modo Claro' : 'Modo Escuro';
+}
+
+// ── Modal Genérico Expandido ──────────────────────────────────
+function openModalGenerico(type) {
+  const container = document.getElementById('gen-content');
+  const title = document.getElementById('gen-title');
+  const saveBtn = document.getElementById('gen-save-btn');
+  container.innerHTML = '';
+  
+  const fields = {
+    cliente: { title: 'Novo Cliente', html: `<input class="input-field" id="c-nome" placeholder="Razão Social"><input class="input-field" id="c-cnpj" placeholder="CNPJ"><input class="input-field" id="c-contato" placeholder="Contato"><input class="input-field" id="c-cidade" placeholder="Cidade/UF">`, storage: 'tp_clientes' },
+    veiculo: { title: 'Novo Veículo', html: `<input class="input-field" id="v-placa" placeholder="Placa"><input class="input-field" id="v-modelo" placeholder="Modelo"><input class="input-field" id="v-tipo" placeholder="Tipo"><input class="input-field" id="v-cap" placeholder="Capacidade"><input class="input-field" id="v-local" placeholder="Localização Atual (Ex: Pátio SP)">`, storage: 'tp_veiculos' },
+    contrato: { title: 'Novo Contrato', html: `<input class="input-field" id="ctr-num" placeholder="Número"><input class="input-field" id="ctr-cli" placeholder="Cliente"><input class="input-field" id="ctr-vig" placeholder="Vigência"><input class="input-field" id="ctr-val" placeholder="Valor Mensal">`, storage: 'tp_contratos' },
+    orcamento: { title: 'Nova Cotação', html: `<input class="input-field" id="o-cli" placeholder="Cliente"><input class="input-field" id="o-rota" placeholder="Rota (Ex: SP -> RJ)"><input class="input-field" id="o-val" placeholder="Valor">`, storage: 'tp_orcamentos' },
+    financeiro: { title: 'Nova Transação', html: `<select class="input-field" id="f-tipo"><option value="receita">Receita</option><option value="despesa">Despesa</option></select><input class="input-field" id="f-cat" placeholder="Categoria"><input class="input-field" id="f-desc" placeholder="Descrição"><input class="input-field" id="f-val" type="number" placeholder="Valor">`, storage: 'tp_transacoes' },
+    apolice: { title: 'Nova Apólice', html: `<input class="input-field" id="s-cia" placeholder="Seguradora"><input class="input-field" id="s-num" placeholder="Número da Apólice"><input class="input-field" id="s-tipo" placeholder="Tipo (ex: RCTR-C)"><input class="input-field" id="s-vig" placeholder="Vigência"><input class="input-field" id="s-limite" placeholder="Limite de Cobertura">`, storage: 'tp_apolices' },
+    cte: { title: 'Emitir CT-e', html: `<input class="input-field" id="doc-chave" placeholder="Chave de Acesso (44 dígitos)"><input class="input-field" id="doc-emissor" placeholder="Nome do Emissor">`, storage: 'tp_documentos' },
+    mdfe: { title: 'Emitir MDF-e', html: `<input class="input-field" id="doc-chave" placeholder="Chave de Acesso (44 dígitos)"><input class="input-field" id="doc-emissor" placeholder="Nome do Emissor">`, storage: 'tp_documentos' }
+  };
+
+  const config = fields[type];
+  title.textContent = config.title;
+  container.innerHTML = config.html;
+
+  saveBtn.onclick = () => {
+    const data = { id: Date.now() };
+    if (type === 'cliente') Object.assign(data, { nome: document.getElementById('c-nome').value, cnpj: document.getElementById('c-cnpj').value, contato: document.getElementById('c-contato').value, cidade: document.getElementById('c-cidade').value });
+    if (type === 'veiculo') Object.assign(data, { placa: document.getElementById('v-placa').value, modelo: document.getElementById('v-modelo').value, tipo: document.getElementById('v-tipo').value, cap: document.getElementById('v-cap').value, local: document.getElementById('v-local').value || 'Não informado', status: 'Disponível' });
+    if (type === 'contrato') Object.assign(data, { num: document.getElementById('ctr-num').value, cli: document.getElementById('ctr-cli').value, vig: document.getElementById('ctr-vig').value, valor: 'R$ ' + document.getElementById('ctr-val').value, status: 'Ativo' });
+    if (type === 'orcamento') Object.assign(data, { cli: document.getElementById('o-cli').value, rota: document.getElementById('o-rota').value, valor: 'R$ ' + document.getElementById('o-val').value, status: 'Pendente', data: new Date().toLocaleDateString('pt-BR') });
+    if (type === 'financeiro') Object.assign(data, { tipo: document.getElementById('f-tipo').value, categoria: document.getElementById('f-cat').value, desc: document.getElementById('f-desc').value, valor: parseFloat(document.getElementById('f-val').value), data: new Date().toISOString().split('T')[0] });
+    if (type === 'cte' || type === 'mdfe') Object.assign(data, { type: type === 'cte' ? 'CT-e' : 'MDF-e', chave: document.getElementById('doc-chave').value, emissor: document.getElementById('doc-emissor').value, data: new Date().toLocaleDateString('pt-BR'), status: 'Autorizado' });
+    if (type === 'apolice') Object.assign(data, { cia: document.getElementById('s-cia').value, num: document.getElementById('s-num').value, tipo: document.getElementById('s-tipo').value, vig: document.getElementById('s-vig').value, limite: document.getElementById('s-limite').value });
+
+    const list = getStorage(config.storage, []);
+    list.push(data);
+    setStorage(config.storage, list);
+    
+    let targetPage = type + 's';
+    if (type === 'financeiro') targetPage = 'financeiro';
+    if (type === 'cte' || type === 'mdfe') targetPage = 'documentos';
+    if (type === 'apolice') targetPage = 'seguros';
+    goPage(targetPage);
+    fecharModalGen();
+  };
+
+  document.getElementById('modal-generico').classList.add('open');
+}
+
+function fecharModalGen() { document.getElementById('modal-generico').classList.remove('open'); showToast('Item salvo!'); }
+
+function deletarItem(storageKey, id, callback) {
+  if (!confirm('Deseja excluir este item?')) return;
+  let items = getStorage(storageKey, []);
+  items = items.filter(i => i.id !== id);
+  setStorage(storageKey, items);
+  callback();
+  showToast('Excluído com sucesso');
+}
+
+function renderClientes() {
+  const clientes = getStorage('tp_clientes', []);
+  document.getElementById('clientes-table').innerHTML = clientes.length === 0 
+    ? '<tr><td colspan="5" class="text-center py-4 text-gray-400">Nenhum cliente cadastrado</td></tr>' 
+    : clientes.map(c => `<tr>
+        <td>${c.nome}</td>
+        <td>${c.cnpj}</td>
+        <td>${c.contato}</td>
+        <td>${c.cidade}</td>
+        <td><button onclick="deletarItem('tp_clientes', ${c.id}, renderClientes)" class="text-red-500 font-bold">Excluir</button></td>
+      </tr>`).join('');
+}
+
+function renderVeiculos() {
+  const frota = getStorage('tp_veiculos', []);
+  document.getElementById('veiculos-table').innerHTML = frota.length === 0 
+    ? '<tr><td colspan="5" class="text-center py-4 text-gray-400">Nenhum veículo cadastrado</td></tr>' 
+    : frota.map(v => `<tr>
+        <td><span class="font-mono bg-gray-100 px-2 py-1 rounded">${v.placa}</span></td>
+        <td>${v.modelo}</td>
+        <td>${v.tipo}</td>
+        <td>${v.cap}</td>
+        <td class="text-primary font-medium">${v.local || '—'}</td>
+        <td><span class="badge-status badge-green">${v.status}</span></td>
+        <td>
+          <div class="flex gap-2">
+            <button onclick="abrirModalEditarVeiculo(${v.id})" class="text-blue-600 font-bold hover:underline">Editar</button>
+            <button onclick="deletarItem('tp_veiculos', ${v.id}, renderVeiculos)" class="text-red-500 font-bold hover:underline">Excluir</button>
+          </div>
+        </td>
+      </tr>`).join('');
+}
+
+function abrirModalEditarVeiculo(id) {
+  const frota = getStorage('tp_veiculos', []);
+  const v = frota.find(item => item.id === id);
+  if (!v) return;
+
+  const container = document.getElementById('gen-content');
+  const title = document.getElementById('gen-title');
+  const saveBtn = document.getElementById('gen-save-btn');
+  
+  title.textContent = 'Editar Veículo: ' + v.placa;
+  container.innerHTML = `
+    <div class="grid grid-cols-1 gap-3">
+      <input class="input-field" id="edit-v-placa" value="${v.placa}" placeholder="Placa">
+      <input class="input-field" id="edit-v-modelo" value="${v.modelo}" placeholder="Modelo">
+      <input class="input-field" id="edit-v-local" value="${v.local || ''}" placeholder="Localização Atual">
+      <select class="input-field" id="edit-v-status">
+        <option value="Disponível" ${v.status === 'Disponível' ? 'selected' : ''}>Disponível</option>
+        <option value="Em Rota" ${v.status === 'Em Rota' ? 'selected' : ''}>Em Rota</option>
+        <option value="Manutenção" ${v.status === 'Manutenção' ? 'selected' : ''}>Manutenção</option>
+      </select>
+    </div>
+  `;
+
+  saveBtn.onclick = () => {
+    v.placa = document.getElementById('edit-v-placa').value;
+    v.modelo = document.getElementById('edit-v-modelo').value;
+    v.local = document.getElementById('edit-v-local').value;
+    v.status = document.getElementById('edit-v-status').value;
+    setStorage('tp_veiculos', frota);
+    showToast('Veículo atualizado!');
+    fecharModalGen();
+    renderVeiculos();
+  };
+  document.getElementById('modal-generico').classList.add('open');
+}
+
+function renderContratos() {
+  const ctr = getStorage('tp_contratos', []);
+  document.getElementById('contratos-table').innerHTML = ctr.length === 0
+    ? '<tr><td colspan="5" class="text-center py-4 text-gray-400">Nenhum contrato ativo</td></tr>'
+    : ctr.map(c => `<tr><td>${c.num}</td><td>${c.cli}</td><td>${c.vig}</td><td>${c.valor}</td><td><span class="badge-status badge-blue">${c.status}</span></td></tr>`).join('');
+}
+
+function renderOrcamentos() {
+  const orc = getStorage('tp_orcamentos', []);
+  document.querySelector('#orcamentos-table tbody').innerHTML = orc.length === 0
+    ? '<tr><td colspan="6" class="text-center py-4 text-gray-400">Nenhuma cotação</td></tr>'
+    : orc.map(o => `<tr>
+        <td>${o.data}</td>
+        <td>${o.cli}</td>
+        <td>${o.rota}</td>
+        <td>${o.valor}</td>
+        <td><span class="badge-status badge-gray">${o.status}</span></td>
+        <td>
+          <div class="flex gap-2">
+            <button onclick="gerarPDFOrcamento(${o.id}, false)" class="text-primary font-bold text-xs hover:underline">Ver</button>
+            <button onclick="gerarPDFOrcamento(${o.id}, true)" class="text-green-600 font-bold text-xs hover:underline">Baixar</button>
+            <button onclick="deletarItem('tp_orcamentos', ${o.id}, renderOrcamentos)" class="text-red-400 font-bold text-xs hover:underline">Del</button>
+          </div>
+        </td>
+      </tr>`).join('');
+}
+
+function renderVistorias() {
+  const vistorias = getStorage('tp_vistorias', []);
+  const tbody = document.getElementById('vistorias-table');
+  tbody.innerHTML = vistorias.length === 0 
+    ? '<tr><td colspan="6" class="text-center py-8 text-gray-400">Nenhuma vistoria registrada.</td></tr>'
+    : vistorias.reverse().map(v => `<tr><td class="font-mono text-xs">${v.id}</td><td><b>${v.placa}</b></td><td>${v.motorista}</td><td>${v.data} ${v.hora}</td><td><span class="badge-status ${v.status==='Aprovado'?'badge-green':'badge-gray'}">${v.status}</span></td><td><button class="text-primary font-bold">Ver Detalhes</button></td></tr>`).join('');
+}
+
+function renderMensagensAdmin() {
+  const users = getStorage('tp_users', []);
+  const msgs = getStorage('tp_mensagens', []);
+  const listEl = document.getElementById('admin-chat-list');
+  
+  // Filtrar apenas usuários que mandaram mensagem
+  // Mostrar todos os usuários para o Admin poder iniciar conversas
+  const chatUsers = users;
+  
+  listEl.innerHTML = chatUsers.length === 0 
+    ? '<p class="p-4 text-center text-gray-400 text-sm">Nenhuma conversa iniciada.</p>'
+    : chatUsers.map(u => `
+      <div class="p-4 hover:bg-slate-50 cursor-pointer ${String(selectedChatMotoristaId) === String(u.id) ? 'bg-blue-50' : ''}" onclick="selecionarChat('${u.id}', '${u.nome}')">
+        <p class="font-bold text-sm text-gray-800">${u.nome}</p>
+        <p class="text-xs text-gray-500 truncate">${msgs.filter(m => String(m.from) === String(u.id) || String(m.to) === String(u.id)).slice(-1)[0]?.text || ''}</p>
+      </div>
+    `).join('');
+
+  if (selectedChatMotoristaId) {
+    const conversa = msgs.filter(m => String(m.from) === String(selectedChatMotoristaId) || String(m.to) === String(selectedChatMotoristaId));
+    const win = document.getElementById('admin-chat-window');
+    win.innerHTML = conversa.map(m => `
+      <div class="flex ${String(m.from) === 'admin' ? 'justify-end' : 'justify-start'}">
+        <div class="max-w-[80%] p-3 rounded-xl text-sm ${String(m.from) === 'admin' ? 'bg-primary text-white' : 'bg-white border text-gray-800'}">
+          ${m.text}
+          <p class="text-[9px] mt-1 opacity-60">${m.hora || ''}</p>
+        </div>
+      </div>
+    `).join('');
+    win.scrollTop = win.scrollHeight;
+  }
+}
+
+async function selecionarChat(id, nome) {
+  selectedChatMotoristaId = id;
+  if (nome !== "Atualizando...") document.getElementById('admin-chat-header').textContent = 'Conversando com ' + nome;
+  
+  try {
+    const res = await fetch(`http://localhost:3001/api/mensagens/${id}`);
+    const data = await res.json();
+    const formatadas = data.map(m => ({
+      from: m.remetente_id,
+      to: m.destinatario_id,
+      text: m.texto,
+      hora: new Date(m.enviado_em).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})
+    }));
+    setStorage('tp_mensagens', formatadas);
+    renderMensagensAdmin();
+  } catch (e) { console.error("Erro ao carregar histórico", e); }
+}
+
+function enviarMsgAdmin() {
+  const input = document.getElementById('admin-chat-input');
+  const text = input.value.trim();
+  if (!text || !selectedChatMotoristaId) return;
+
+  socket.emit('send_message', {
+    remetente_id: 'admin',
+    destinatario_id: selectedChatMotoristaId,
+    texto: text,
+    hora: new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}),
+  });
+  input.value = '';
+}
+
+async function renderDocumentos() {
+  let docs = [];
+  try {
+    const res = await fetch('http://localhost:3001/api/documentos');
+    if (!res.ok) throw new Error();
+    docs = await res.json();
+    window.lastDocs = docs;
+  } catch (e) { console.error("Erro ao carregar documentos"); docs = []; }
+
+  document.getElementById('count-cte').textContent = docs.filter(d => d.tipo === 'CT-e').length;
+  document.getElementById('count-mdfe').textContent = docs.filter(d => d.tipo === 'MDF-e').length;
+  document.getElementById('count-uploads').textContent = docs.filter(d => d.tipo === 'Upload' || d.tipo === 'NF-e').length;
+  
+  const totalDocsEl = document.getElementById('count-total-docs');
+  if (totalDocsEl) totalDocsEl.textContent = docs.length || 0;
+
+  const searchTerm = (document.getElementById('doc-search')?.value || '').toLowerCase();
+  const filtered = docs.filter(d => 
+    (d.chave_acesso || '').toLowerCase().includes(searchTerm) || 
+    (d.tipo || '').toLowerCase().includes(searchTerm) || 
+    (d.emissor_nome || 'Admin').toLowerCase().includes(searchTerm)
+  );
+
+  const tbody = document.getElementById('documentos-table');
+  tbody.innerHTML = filtered.length === 0
+    ? '<tr><td colspan="6" class="text-center py-8 text-gray-400 font-medium">Nenhum documento encontrado.</td></tr>'
+    : filtered.map(d => `
+    <tr>
+      <td><span class="badge-status ${d.tipo === 'MDF-e' ? 'badge-green' : (d.tipo === 'CT-e' ? 'badge-blue' : 'badge-gray')}">${d.tipo || 'Lançamento'}</span></td>
+      <td class="font-mono text-[11px] font-bold">${d.chave_acesso || 'S/N'}</td>
+      <td>${d.emissor_nome || 'Admin'}</td>
+      <td>${new Date(d.criado_em).toLocaleDateString()}</td>
+      <td><span class="badge-status ${d.status === 'Autorizado' || d.status === 'Concluído' ? 'badge-green' : 'badge-blue'}">${d.status}</span></td>
+      <td>
+        <div class="flex gap-2">
+          <button onclick="visualizarDetalhesDoc('${d.id}')" class="text-primary font-bold text-xs hover:underline">Detalhes</button>
+          <button onclick="showToast('Baixando XML/PDF...')" class="text-gray-400 hover:text-gray-600">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function visualizarDetalhesDoc(id) {
+  const d = (window.lastDocs || []).find(doc => String(doc.id) === String(id));
+  if(!d) return;
+
+  const container = document.getElementById('modal-ver-content');
+  document.getElementById('modal-ver').classList.add('open');
+  
+  container.innerHTML = `
+    <div class="space-y-4">
+      <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
+        <p class="text-[10px] font-black text-primary uppercase mb-1">Chave de Acesso</p>
+        <p class="font-mono text-xs break-all bg-white p-2 rounded border">${d.chave_acesso || 'LANÇAMENTO MANUAL'}</p>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div><p class="label-field">Tipo</p><p class="text-sm font-bold">${d.tipo}</p></div>
+        <div><p class="label-field">Status</p><p class="text-sm font-bold text-green-600">${d.status}</p></div>
+        <div><p class="label-field">Emissor</p><p class="text-sm font-bold">${d.emissor_nome || 'Sistema Admin'}</p></div>
+        <div><p class="label-field">Data</p><p class="text-sm font-bold">${new Date(d.criado_em).toLocaleString()}</p></div>
+        ${d.cfop ? `<div><p class="label-field">CFOP</p><p class="text-sm font-bold">${d.cfop}</p></div>` : ''}
+        ${d.cst ? `<div><p class="label-field">CST</p><p class="text-sm font-bold">${d.cst}</p></div>` : ''}
+      </div>
+      <div class="mt-2 p-3 bg-blue-50 rounded-lg text-xs text-blue-700">
+        <b>ID do Embarque Relacionado:</b> ${d.embarque_id || 'Lançamento Avulso'}
+      </div>
+    </div>
+  `;
+}
+
+async function openModalEmissao(tipo) {
+  let embarques = [];
+  try {
+    // Busca todos os embarques para permitir vínculo manual mesmo em viagens finalizadas
+    const res = await fetch('http://localhost:3001/api/embarques');
+    embarques = await res.json();
+  } catch (e) { console.warn("Aviso: Falha ao carregar embarques para vínculo."); }
+  
+  const container = document.getElementById('gen-content');
+  document.getElementById('gen-title').textContent = `Lançamento de ${tipo}`;
+  
+  container.innerHTML = `
+    <div class="space-y-4">
+      <div>
+        <label class="label-field font-bold text-primary">Vincular Viagem (Opcional)</label>
+        <select class="input-field w-full" id="emissao-embarque" onchange="window.preencherDadosFiscais(this.value)">
+          <option value="">-- LANÇAMENTO AVULSO --</option>
+          <optgroup label="Selecione a Viagem Realizada">
+          ${embarques.map(e => `<option value="${e.id}">${e.id} - ${e.placa} (${e.origem} -> ${e.destino})</option>`).join('')}
+          </optgroup>
+        </select>
+      </div>
+
+      <div id="form-fiscal" class="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-blue-100">
+        <div class="col-span-2">
+          <label class="label-field">Número ou Chave de Acesso</label>
+          <input class="input-field w-full font-mono text-sm" id="emissao-chave" maxlength="44" placeholder="0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000">
+          <button class="text-[10px] text-primary font-bold mt-1 uppercase" onclick="document.getElementById('emissao-chave').value = '3524' + Date.now() + Math.floor(Math.random()*1000)">Sugestão de Chave Aleatória</button>
+        </div>
+        <div>
+          <label class="label-field">CFOP</label>
+          <input class="input-field w-full" id="emissao-cfop" placeholder="Ex: 5351">
+        </div>
+        <div>
+          <label class="label-field">CST ICMS</label>
+          <input class="input-field w-full" id="emissao-cst" placeholder="Ex: 00">
+        </div>
+        <div>
+          <label class="label-field">Série</label>
+          <input class="input-field w-full" id="emissao-serie" placeholder="1">
+        </div>
+        <div>
+          <label class="label-field">Número</label>
+          <input class="input-field w-full" id="emissao-numero" placeholder="0001">
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Função global para preenchimento automático
+  window.preencherDadosFiscais = (id) => {
+    if (!id || id === "") return;
+    const e = (embarques || []).find(x => x.id === id);
+    if (!e) return;
+    const ufOrigem = e.origem.split('/')[1] || 'SP';
+    const ufDestino = e.destino.split('/')[1] || 'SP';
+    document.getElementById('emissao-cfop').value = (ufOrigem.trim() === ufDestino.trim()) ? '5351' : '6351';
+    document.getElementById('emissao-cst').value = '00';
+    showToast("Dados fiscais sugeridos conforme a rota da viagem.");
+  };
+
+  document.getElementById('gen-save-btn').onclick = async () => {
+    const chaveVal = (document.getElementById('emissao-chave')?.value || "").trim();
+    
+    const payload = {
+      embarque_id: document.getElementById('emissao-embarque').value || "", // O backend tratará "" como null
+      tipo: tipo,
+      chave_acesso: chaveVal,
+      cfop: document.getElementById('emissao-cfop').value,
+      cst: document.getElementById('emissao-cst').value,
+      emissor_id: 1 // Admin
+    };
+
+    if (!chaveVal) { 
+      showToast("Obrigatório: Digite o Número ou Chave!"); 
+      return; 
+    }
+
+    const btn = document.getElementById('gen-save-btn');
+    btn.disabled = true;
+    btn.textContent = 'Processando...';
+
+    try {
+      const response = await fetch('http://localhost:3001/api/documentos/emitir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Falha ao salvar');
+
+      showToast(`${tipo} salvo com sucesso!`);
+      document.getElementById('modal-generico').classList.remove('open');
+      renderDocumentos();
+    } catch (err) { 
+      showToast(err.message); 
+      console.error(err);
+    }
+    finally { btn.disabled = false; btn.textContent = 'Salvar'; }
+  };
+
+  document.getElementById('modal-generico').classList.add('open');
+}
+
+function renderFinanceiro() {
+  const transacoes = getStorage('tp_transacoes', []);
+  const users = getStorage('tp_users', []);
+
+  const totalReceitas = transacoes.filter(t => t.tipo === 'receita').reduce((a, b) => a + b.valor, 0);
+  const totalSalarios = users.reduce((acc, u) => acc + (parseFloat(u.salario) || 0), 0);
+  const totalDespesas = transacoes.filter(t => t.tipo === 'despesa').reduce((a, b) => a + b.valor, 0) + totalSalarios;
+  const saldo = totalReceitas - totalDespesas;
+
+  document.getElementById('fin-saldo').textContent = saldo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  document.getElementById('fin-receitas').textContent = totalReceitas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  document.getElementById('fin-despesas').textContent = totalDespesas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  const tbody = document.getElementById('financeiro-table');
+  tbody.innerHTML = transacoes.length === 0
+    ? '<tr><td colspan="6" class="text-center py-8 text-gray-400">Nenhuma transação registrada.</td></tr>'
+    : transacoes.reverse().map(t => `<tr>
+        <td><span class="badge-status ${t.tipo==='receita'?'badge-green':'badge-red'}">${t.tipo.toUpperCase()}</span></td>
+        <td>${t.categoria}</td>
+        <td>${t.desc}</td>
+        <td class="font-bold ${t.tipo==='receita'?'text-green-600':'text-red-600'}">R$ ${t.valor.toLocaleString('pt-BR')}</td>
+        <td>${formatDate(t.data)}</td>
+        <td><button onclick="deletarItem('tp_transacoes', ${t.id}, renderFinanceiro)" class="text-red-500 font-bold text-xs">Excluir</button></td>
+      </tr>`).join('');
+}
+
+function renderSeguros() {
+  let apolices = getStorage('tp_apolices', []);
+  if (apolices.length === 0) {
+    apolices = [
+      {id: 1, cia: 'Porto Seguro', num: '12345-X', tipo: 'RCTR-C', vig: '01/2024 - 01/2025', limite: 'R$ 500.000,00'},
+      {id: 2, cia: 'Tokio Marine', num: '98765-Y', tipo: 'RCF-DC', vig: '03/2024 - 03/2025', limite: 'R$ 1.000.000,00'}
+    ];
+    setStorage('tp_apolices', apolices);
+  }
+  const averbacoes = getStorage('tp_averbacoes', []);
+
+  document.getElementById('apolices-table').innerHTML = apolices.map(a => `
+    <tr>
+      <td class="font-bold">${a.cia}</td>
+      <td class="font-mono text-xs">${a.num}</td>
+      <td><span class="badge-status badge-blue">${a.tipo}</span></td>
+      <td>${a.vig}</td>
+      <td>${a.limite}</td>
+      <td><button onclick="deletarItem('tp_apolices', ${a.id}, renderSeguros)" class="text-red-500 font-bold text-xs">Excluir</button></td>
+    </tr>`).join('');
+
+  document.getElementById('averbacoes-table').innerHTML = averbacoes.length === 0
+    ? '<tr><td colspan="5" class="text-center py-8 text-gray-400">Nenhuma averbação registrada.</td></tr>'
+    : averbacoes.reverse().map(av => `
+      <tr>
+        <td class="font-mono text-xs">${av.embarqueId}</td>
+        <td class="text-xs">${av.protocolo}</td>
+        <td class="font-bold">R$ ${av.valor.toLocaleString('pt-BR')}</td>
+        <td>${av.data} ${av.hora}</td>
+        <td><span class="badge-status badge-green">Sucesso</span></td>
+      </tr>`).join('');
+}
+
+function renderRastreamento() {
+  const registros = getStorage('tp_registros', []);
+  const ativos = registros.filter(r => r.status !== 'Entregue').slice(0, 10);
+  const lista = document.getElementById('rastreamento-lista');
+  
+  lista.innerHTML = ativos.length === 0 
+    ? '<div class="p-8 text-center text-gray-400 text-xs">Nenhum veículo em rota ativa</div>'
+    : ativos.map(r => `
+      <div class="p-4 hover:bg-slate-50 cursor-pointer transition-colors" onclick="showToast('Focando no veículo ${r.placa}')">
+        <div class="flex justify-between items-start mb-1">
+          <span class="font-bold text-sm text-gray-800">${r.placa}</span>
+          <span class="badge-status badge-blue text-[10px]">${r.status}</span>
+        </div>
+        <p class="text-[11px] text-gray-500 truncate">${r.motorista}</p>
+        <div class="flex items-center gap-2 mt-2 text-[10px] text-primary font-medium">
+          <div class="w-1.5 h-1.5 bg-primary rounded-full animate-pulse"></div>
+          Sinal GPS Ativo
+        </div>
+      </div>
+    `).join('');
+}
+
+function initMap() {
+  setTimeout(() => {
+    if (window.mymap) window.mymap.remove();
+    window.mymap = L.map('map').setView([-23.5505, -46.6333], 10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(window.mymap);
+    const ativos = getStorage('tp_registros', []).filter(r => r.status !== 'Entregue');
+    ativos.forEach(r => {
+      const lat = -23.55 + (Math.random() * 0.1);
+      const lng = -46.63 + (Math.random() * 0.1);
+      L.marker([lat, lng]).addTo(window.mymap).bindPopup(`<b>${r.placa}</b><br>${r.motorista}`);
+    });
+  }, 100);
+}
+
+function exportarExcel() {
+  const registros = getStorage('tp_registros', []);
+  if (registros.length === 0) return showToast('Sem dados para exportar');
+  const ws = XLSX.utils.json_to_sheet(registros);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Registros");
+  XLSX.writeFile(wb, "Relatorio_Transporte_PRO.xlsx");
+  showToast('Excel gerado!');
+}
+
+// ── Dashboard ─────────────────────────────────────────────────
+function renderDashboard() {
+  const registros = getStorage('tp_registros', []);
+  const vistorias = getStorage('tp_vistorias', []);
+  const transacoes = getStorage('tp_transacoes', []);
+  const users = getStorage('tp_users', []);
+
+  const hoje = new Date().toISOString().split('T')[0];
+  const hojeBR = new Date().toLocaleDateString('pt-BR');
+
+  const entregasHoje = registros.filter(r => r.data === hoje && (r.status === 'Entregue' || r.status === 'Finalizada')).length;
+  const emTransito = registros.filter(r => r.status !== 'Entregue' && r.status !== 'Finalizada').length;
+  const vistoriasHoje = vistorias.filter(v => v.data === hojeBR).length;
+  
+  const rec = transacoes.filter(t => t.tipo === 'receita').reduce((a,b)=>a+b.valor,0);
+  const des = transacoes.filter(t => t.tipo === 'despesa').reduce((a,b)=>a+b.valor,0);
+  const saldo = rec - des;
+
+  // Atualizar contadores do dashboard
+  const motCount = document.getElementById('count-motoristas-total');
+  if (motCount) motCount.textContent = users.length;
+
+  document.getElementById('stat-hoje').textContent = entregasHoje;
+  document.getElementById('stat-transito').textContent = emTransito;
+  document.getElementById('stat-vistorias').textContent = vistoriasHoje;
+  document.getElementById('stat-financeiro').textContent = saldo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  // Recent table
+  const recent = [...registros].reverse().slice(0, 6);
+  const tbody = document.getElementById('dash-recent-table');
+  tbody.innerHTML = recent.length === 0
+    ? '<tr><td colspan="4" class="text-center text-gray-400 py-8">Nenhum registro ainda</td></tr>'
+    : recent.map(r => `<tr>
+        <td><div class="flex items-center gap-2"><div class="avatar" style="width:28px;height:28px;font-size:11px;">${(r.motorista||'?').charAt(0)}</div>${r.motorista}</div></td>
+        <td><span class="font-mono text-xs bg-gray-100 px-2 py-1 rounded">${r.placa}</span></td>
+        <td class="text-xs">${r.origem} → ${r.destino}</td>
+        <td><span class="badge-status badge-gray">${r.status || 'Saída'}</span></td>
+        <td>${formatDate(r.data)}</td>
+      </tr>`).join('');
+
+  // Mini chart
+  renderMiniChart();
+}
+
+function renderMiniChart() {
+  const registros = getStorage('tp_registros', []);
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    days.push({ label: d.getDate(), count: registros.filter(r => r.data === dateStr).length });
+  }
+  const max = Math.max(...days.map(d => d.count), 1);
+  document.getElementById('mini-chart').innerHTML = days.map(d =>
+    `<div class="flex-1 flex flex-col items-center gap-1">
+      <div class="chart-bar w-full flex-1" style="position:relative;">
+        <div class="chart-fill" style="height:${Math.round((d.count/max)*100)}%"></div>
+      </div>
+      <span class="text-xs text-gray-400 font-mono">${d.count}</span>
+    </div>`
+  ).join('');
+  document.getElementById('mini-chart-labels').innerHTML = days.map(d =>
+    `<div class="flex-1 text-center text-xs text-gray-400">${d.label}</div>`
+  ).join('');
+}
+
+// ── Registros ─────────────────────────────────────────────────
+function filtrarRegistros() {
+  const registros = getStorage('tp_registros', []);
+  const q = (document.getElementById('reg-search')?.value || '').toLowerCase();
+  const mes = document.getElementById('reg-filter-mes')?.value || '';
+  let filtered = registros.filter(r => {
+    const matchQ = !q || r.motorista?.toLowerCase().includes(q) || r.placa?.toLowerCase().includes(q) || r.destino?.toLowerCase().includes(q) || r.carga?.toLowerCase().includes(q);
+    const matchMes = !mes || r.data?.startsWith(mes);
+    return matchQ && matchMes;
+  }).reverse();
+
+  document.getElementById('reg-count').textContent = filtered.length + ' registros';
+
+  const start = regPage * PAGE_SIZE;
+  const page = filtered.slice(start, start + PAGE_SIZE);
+  const tbody = document.getElementById('registros-table');
+
+  tbody.innerHTML = page.length === 0
+    ? '<tr><td colspan="7" class="text-center text-gray-400 py-8">Nenhum registro encontrado</td></tr>'
+    : page.map(r => `<tr>
+        <td><div class="flex items-center gap-2"><div class="avatar" style="width:28px;height:28px;font-size:11px;">${(r.motorista||'?').charAt(0)}</div><div><p class="text-sm font-medium text-gray-900">${r.motorista}</p><p class="text-xs text-gray-400">${r.id}</p></div></div></td>
+        <td><span class="font-mono text-xs bg-gray-100 px-2 py-1 rounded">${r.placa}</span></td>
+        <td class="text-sm">${r.origem}</td>
+        <td class="text-sm">${r.destino}</td>
+        <td><span class="badge-status ${['Entregue', 'Finalizada'].includes(r.status) ? 'badge-green' : 'badge-blue'}">${r.status || 'Saída'}</span></td>
+        <td class="text-sm">${formatDate(r.data)}</td>
+        <td class="text-sm">${r.hora}</td>
+        <td>
+          <div class="flex gap-2">
+            <button onclick="verRegistro('${r.id}')" class="text-primary hover:underline text-xs font-semibold">Ver</button>
+            <button onclick="baixarPDF('${r.id}')" class="text-green-600 hover:underline text-xs font-semibold">Baixar</button>
+            <button onclick="deletarRegistro('${r.id}')" class="text-red-400 hover:underline text-xs font-semibold">Del</button>
+          </div>
+        </td>
+      </tr>`).join('');
+
+  // Pagination
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const pag = document.getElementById('reg-pagination');
+  if (totalPages <= 1) { pag.innerHTML = ''; return; }
+  pag.innerHTML = Array.from({length: totalPages}, (_, i) =>
+    `<button onclick="regPage=${i};filtrarRegistros()" class="w-8 h-8 rounded-lg text-sm font-medium ${i === regPage ? 'bg-primary text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}">${i+1}</button>`
+  ).join('');
+}
+
+function verRegistro(id) {
+  const registros = getStorage('tp_registros', []);
+  const r = registros.find(x => x.id === id);
+  if (!r) return;
+  currentViewId = id;
+  
+  const statusOptions = ['Saída', 'Trânsito', 'Transbordo', 'Finalizada'];
+  
+  document.getElementById('modal-ver-content').innerHTML = `
+    <div class="space-y-3">
+      ${[
+    ['ID', r.id], ['Motorista', r.motorista], ['Placa', r.placa],
+    ['Chassi', r.chassi], ['Marca/Modelo', r.modelo], ['Cor', r.cor],
+    ['Valor Seguro', 'R$ ' + (parseFloat(r.valorVeiculo)||0).toLocaleString('pt-BR')],
+    ['Transportadora', r.transportadora], ['Origem', r.origem], ['Destino', r.destino],
+    ['Carga', r.carga], ['Peso (kg)', r.peso], ['Data', formatDate(r.data)],
+    ['Horário', r.hora], ['Observações', r.obs]
+      ].map(([l, v]) => `
+        <div class="flex items-start gap-4 py-2 border-b border-gray-50">
+          <span class="text-xs font-semibold text-gray-400 w-28 flex-shrink-0 pt-0.5">${l}</span>
+          <span class="text-sm text-gray-800 font-medium">${v || '—'}</span>
+        </div>
+      `).join('')}
+      
+      <div class="mt-4 p-3 bg-blue-50 rounded-lg">
+        <label class="text-xs font-bold text-primary block mb-2 uppercase">Alterar Status do Transporte</label>
+        <select id="edit-status-val" class="input-field w-full text-sm">
+          ${statusOptions.map(opt => `<option value="${opt}" ${r.status === opt || (opt === 'Finalizada' && r.status === 'Entregue') ? 'selected' : ''}>${opt}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+  `;
+  document.getElementById('modal-ver').classList.add('open');
+}
+
+function atualizarStatusRegistro() {
+  if (!currentViewId) return;
+  const newStatus = document.getElementById('edit-status-val').value;
+  let registros = getStorage('tp_registros', []);
+  const idx = registros.findIndex(r => r.id === currentViewId);
+  if (idx !== -1) {
+    registros[idx].status = newStatus;
+    setStorage('tp_registros', registros);
+    showToast('Status atualizado para ' + newStatus);
+    document.getElementById('modal-ver').classList.remove('open');
+    filtrarRegistros();
+    renderDashboard();
+  }
+}
+
+function baixarPDFModal() { if (currentViewId) baixarPDF(currentViewId); }
+
+function baixarPDF(id) {
+  const registros = getStorage('tp_registros', []);
+  const r = registros.find(x => x.id === id);
+  if (!r) return;
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.setFillColor(37, 99, 235);
+    doc.rect(0, 0, 210, 40, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18); doc.setFont(undefined, 'bold');
+    doc.text('TRANSPORTADORA', 105, 15, {align:'center'});
+    doc.setFontSize(12); doc.setFont(undefined, 'normal');
+    doc.text('COMPROVANTE DE TRANSPORTE', 105, 25, {align:'center'});
+    doc.setFontSize(10);
+    doc.text('ID: ' + r.id + '  |  ' + r.data + '  ' + r.hora, 105, 34, {align:'center'});
+    doc.setTextColor(15, 23, 42);
+    let y = 55;
+    const campos = [
+      ['Motorista', r.motorista], ['Transportadora', r.transportadora],
+      ['Veículo / Placa', r.placa], ['Origem', r.origem], ['Destino', r.destino],
+      ['Carga', r.carga], ['Peso (kg)', r.peso], ['Observações', r.obs],
+      ['Data', r.data], ['Horário', r.hora],
+    ];
+    campos.forEach(([label, val]) => {
+      doc.setFont(undefined, 'bold'); doc.setFontSize(10);
+      doc.text(label + ':', 20, y);
+      doc.setFont(undefined, 'normal');
+      doc.text(String(val || '—'), 70, y);
+      y += 10;
+    });
+    doc.setFillColor(37, 99, 235); doc.rect(0, 270, 210, 30, 'F');
+    doc.setTextColor(255,255,255); doc.setFontSize(9);
+    doc.text('Transporte PRO — Documento gerado automaticamente', 105, 281, {align:'center'});
+    doc.save(r.id + '_' + (r.motorista||'').replace(/ /g,'_') + '.pdf');
+    showToast('PDF gerado!');
+  } catch(e) { showToast('Erro ao gerar PDF'); }
+}
+
+function deletarRegistro(id) {
+  if (!confirm('Tem certeza que deseja deletar este registro?')) return;
+  let registros = getStorage('tp_registros', []);
+  registros = registros.filter(r => r.id !== id);
+  setStorage('tp_registros', registros);
+  filtrarRegistros();
+  showToast('Registro deletado');
+}
+
+function exportarTodosPDFs() {
+  const registros = getStorage('tp_registros', []);
+  if (registros.length === 0) { showToast('Nenhum registro para exportar'); return; }
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape' });
+    doc.setFillColor(37, 99, 235); doc.rect(0, 0, 297, 25, 'F');
+    doc.setTextColor(255,255,255); doc.setFontSize(14); doc.setFont(undefined, 'bold');
+    doc.text('TRANSPORTE PRO — Relatório de Registros', 148.5, 16, {align:'center'});
+    doc.setTextColor(15,23,42);
+    const headers = [['ID','Motorista','Placa','Transportadora','Origem','Destino','Carga','Data','Horário']];
+    const rows = registros.map(r => [r.id,r.motorista,r.placa,r.transportadora,r.origem,r.destino,r.carga,r.data,r.hora]);
+    doc.autoTable({ head: headers, body: rows, startY: 30, styles: {fontSize: 9}, headStyles: {fillColor: [37,99,235]} });
+    doc.save('Relatorio_Transporte_PRO_' + new Date().toISOString().split('T')[0] + '.pdf');
+    showToast('Relatório exportado!');
+  } catch(e) { showToast('Erro ao exportar'); }
+}
+
+// ── Admin Novo Registro ───────────────────────────────────────
+function salvarRegistroAdmin() {
+  const motorista = document.getElementById('m-motorista').value.trim();
+  const placa = document.getElementById('m-placa').value.trim();
+  const transportadora = document.getElementById('m-transportadora').value.trim();
+  const data = document.getElementById('m-data').value;
+  const origem = document.getElementById('m-origem').value.trim();
+  const destino = document.getElementById('m-destino').value.trim();
+  const carga = document.getElementById('m-carga').value.trim();
+  const peso = document.getElementById('m-peso').value;
+  const obs = document.getElementById('m-obs').value.trim();
+  const status = document.getElementById('m-status').value;
+  if (!motorista || !placa || !origem || !destino || !carga || !data) {
+    showToast('Preencha os campos obrigatórios'); return;
+  }
+  const r = {
+    id: 'PDF-' + String(Date.now()).slice(-6),
+    motorista, placa, transportadora, origem, destino, carga, status,
+    peso: peso || '—', obs: obs || '—', data,
+    hora: new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}),
+    criadoEm: Date.now(), motoristaId: 'admin'
+  };
+  const registros = getStorage('tp_registros', []);
+  registros.push(r);
+  setStorage('tp_registros', registros);
+
+  // Averbação Automática Simulação
+  const averbacoes = getStorage('tp_averbacoes', []);
+  averbacoes.push({
+    embarqueId: r.id,
+    protocolo: 'AVB-' + Math.random().toString().slice(2, 10),
+    valor: Math.floor(Math.random() * 50000) + 5000,
+    data: r.data,
+    hora: r.hora
+  });
+  setStorage('tp_averbacoes', averbacoes);
+
+  document.getElementById('modal-novo').classList.remove('open');
+  showToast('Registro salvo!');
+  baixarPDF(r.id);
+  filtrarRegistros();
+}
+
+// ── Calendário ────────────────────────────────────────────────
+function changeAdminMonth(dir) {
+  adminCalMonth += dir;
+  if (adminCalMonth > 11) { adminCalMonth = 0; adminCalYear++; }
+  if (adminCalMonth < 0) { adminCalMonth = 11; adminCalYear--; }
+  renderAdminCal();
+}
+function irHoje() {
+  adminCalYear = new Date().getFullYear();
+  adminCalMonth = new Date().getMonth();
+  renderAdminCal();
+}
+
+function renderAdminCal() {
+  const registros = getStorage('tp_registros', []);
+  document.getElementById('admin-cal-label').textContent = monthNames[adminCalMonth] + ' ' + adminCalYear;
+  const first = new Date(adminCalYear, adminCalMonth, 1).getDay();
+  const days = new Date(adminCalYear, adminCalMonth + 1, 0).getDate();
+  const prevDays = new Date(adminCalYear, adminCalMonth, 0).getDate();
+  const today = new Date();
+  const grid = document.getElementById('admin-cal-grid');
+  let html = '';
+  const startDay = (first === 0 ? 6 : first - 1);
+
+  for (let i = startDay - 1; i >= 0; i--) {
+    html += `<div class="cal-cell other-month"><div class="cal-day-num text-gray-300">${prevDays - i}</div></div>`;
+  }
+
+  for (let d = 1; d <= days; d++) {
+    const dateStr = adminCalYear + '-' + String(adminCalMonth+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    const dayRegs = registros.filter(r => r.data === dateStr);
+    const isToday = today.getFullYear() === adminCalYear && today.getMonth() === adminCalMonth && today.getDate() === d;
+    html += `<div class="cal-cell${isToday?' today':''}" onclick="showCalDay('${dateStr}')">
+      <div class="cal-day-num">${d}</div>
+      ${dayRegs.slice(0,3).map(r => `<div class="cal-pdf-dot">${r.motorista?.split(' ')[0] || r.id}</div>`).join('')}
+      ${dayRegs.length > 3 ? `<div class="text-xs text-gray-400">+${dayRegs.length-3} mais</div>` : ''}
+    </div>`;
+  }
+  grid.innerHTML = html;
+  document.getElementById('cal-detail').style.display = 'none';
+}
+
+function showCalDay(dateStr) {
+  const registros = getStorage('tp_registros', []);
+  const items = registros.filter(r => r.data === dateStr);
+  const [y,m,d] = dateStr.split('-');
+  document.getElementById('cal-detail-title').textContent = `PDFs do dia ${d}/${m}/${y} — ${items.length} registro(s)`;
+  const tbody = document.getElementById('cal-detail-table');
+  tbody.innerHTML = items.length === 0
+    ? '<tr><td colspan="6" class="text-center text-gray-400 py-6">Nenhuma viagem neste dia.</td></tr>'
+    : items.map(r => `<tr>
+        <td class="font-mono text-xs">${r.id}</td>
+        <td>${r.motorista}</td>
+        <td><span class="font-mono text-xs bg-gray-100 px-2 py-1 rounded">${r.placa}</span></td>
+        <td class="text-xs">${r.origem} → ${r.destino}</td>
+        <td>${r.carga}</td>
+        <td><button onclick="baixarPDF('${r.id}')" class="text-primary text-xs font-semibold hover:underline">PDF</button></td>
+      </tr>`).join('');
+  document.getElementById('cal-detail').style.display = 'block';
+}
+
+// ── Motoristas ────────────────────────────────────────────────
+function filtrarMotoristas() {
+  const users = getStorage('tp_users', []);
+  const registros = getStorage('tp_registros', []);
+  const q = (document.getElementById('mot-search')?.value || '').toLowerCase();
+  const filtered = users.filter(u => !q || u.nome?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q));
+  const tbody = document.getElementById('motoristas-table');
+  tbody.innerHTML = filtered.length === 0
+    ? '<tr><td colspan="5" class="text-center text-gray-400 py-8">Nenhum funcionário encontrado</td></tr>'
+    : filtered.map(u => {
+        return `<tr>
+          <td><div class="flex items-center gap-2"><div class="avatar" style="width:32px;height:32px;">${u.nome.charAt(0)}</div><div><p class="text-sm font-medium text-gray-900">${u.nome}</p></div></div></td>
+          <td class="text-sm text-gray-500">${u.email}</td>
+          <td class="text-sm">${u.cargo || 'Não definido'}</td>
+          <td class="text-sm font-bold text-gray-800">R$ ${(parseFloat(u.salario)||0).toLocaleString('pt-BR')}</td>
+          <td>
+            <div class="flex gap-2">
+              <button onclick="abrirModalEditarFuncionario('${u.id}')" class="text-blue-600 hover:text-blue-800 font-bold text-xs hover:underline">Editar</button>
+              <button onclick="verMotorista('${u.id}')" class="text-gray-500 hover:text-primary font-bold text-xs hover:underline">Ver Viagens</button>
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+}
+
+function renderMotoristas() { filtrarMotoristas(); }
+
+function abrirModalCadastrarFuncionario() {
+  const container = document.getElementById('gen-content');
+  const title = document.getElementById('gen-title');
+  const saveBtn = document.getElementById('gen-save-btn');
+  
+  title.textContent = 'Cadastrar Novo Funcionário';
+  container.innerHTML = `
+    <div class="space-y-4">
+      <div>
+        <label class="label-field">Nome Completo</label>
+        <input class="input-field w-full" id="new-func-nome" placeholder="Nome do colaborador">
+      </div>
+      <div>
+        <label class="label-field">E-mail</label>
+        <input class="input-field w-full" id="new-func-email" type="email" placeholder="email@empresa.com">
+      </div>
+      <div>
+        <label class="label-field">Cargo / Função</label>
+        <input class="input-field w-full" id="new-func-cargo" placeholder="Ex: Motorista, Auxiliar...">
+      </div>
+      <div>
+        <label class="label-field">Salário Mensal (R$)</label>
+        <input class="input-field w-full" id="new-func-salario" type="number" step="0.01" value="0">
+      </div>
+    </div>
+  `;
+
+  saveBtn.onclick = async () => {
+    const nome = document.getElementById('new-func-nome').value.trim();
+    const email = document.getElementById('new-func-email').value.trim();
+    const cargo = document.getElementById('new-func-cargo').value.trim();
+    const salario = document.getElementById('new-func-salario').value;
+
+    if (!nome || !email) {
+      showToast('Por favor, preencha o Nome e o E-mail.');
+      return;
+    }
+
+    const payload = {
+      nome,
+      email,
+      cargo,
+      salario,
+      transportadora: 'Transporte PRO' // Ou puxe de uma variável global se houver
+    };
+
+    try {
+      const res = await fetch('http://localhost:3001/api/usuarios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao cadastrar');
+
+      showToast('Funcionário cadastrado! Senha padrão: 123456');
+      fecharModalGen();
+      await carregarUsuarios();
+      renderMotoristas();
+    } catch (err) { showToast(err.message); }
+  };
+  document.getElementById('modal-generico').classList.add('open');
+}
+
+async function abrirModalEditarFuncionario(id) {
+  const users = getStorage('tp_users', []);
+  const u = users.find(user => String(user.id) === String(id));
+  if (!u) return;
+
+  const container = document.getElementById('gen-content');
+  const title = document.getElementById('gen-title');
+  const saveBtn = document.getElementById('gen-save-btn');
+  
+  title.textContent = 'Editar Funcionário: ' + u.nome;
+  container.innerHTML = `
+    <div class="space-y-4">
+      <div>
+        <label class="label-field">Cargo / Função</label>
+        <input class="input-field w-full" id="edit-mot-cargo" value="${u.cargo || ''}" placeholder="Ex: Motorista, Logística...">
+      </div>
+      <div>
+        <label class="label-field">Salário Mensal (R$)</label>
+        <input class="input-field w-full" id="edit-mot-salario" type="number" value="${u.salario || 0}" step="0.01">
+      </div>
+    </div>
+  `;
+
+  saveBtn.onclick = async () => {
+    const cargo = document.getElementById('edit-mot-cargo').value;
+    const salario = document.getElementById('edit-mot-salario').value;
+    
+    try {
+      const res = await fetch(`http://localhost:3001/api/usuarios/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cargo, salario })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao salvar');
+
+      showToast('Dados do funcionário atualizados!');
+      fecharModalGen();
+      await carregarUsuarios();
+      renderMotoristas();
+    } catch (err) { showToast(err.message); }
+  };
+
+  document.getElementById('modal-generico').classList.add('open');
+}
+
+function verMotorista(id) {
+  const users = getStorage('tp_users', []);
+  const u = users.find(x => String(x.id) === String(id));
+  if (u) { 
+    goPage('registros');
+    setTimeout(() => {
+      const searchInput = document.getElementById('reg-search');
+      if (searchInput) {
+        searchInput.value = u.nome;
+        filtrarRegistros();
+      }
+    }, 100);
+  }
+}
+
+// ── Relatórios ────────────────────────────────────────────────
+function initRelatorios() {
+  const users = getStorage('tp_users', []);
+  const sel = document.getElementById('rel-motorista');
+  sel.innerHTML = '<option value="">Todos motoristas</option>' +
+    users.map(u => `<option value="${u.id}">${u.nome}</option>`).join('');
+  gerarRelatorio();
+}
+
+function gerarRelatorio() {
+  const de = document.getElementById('rel-de')?.value || '';
+  const ate = document.getElementById('rel-ate')?.value || '';
+  const motId = document.getElementById('rel-motorista')?.value || '';
+  const registros = getStorage('tp_registros', []);
+  let filtered = registros.filter(r => {
+    const afterDe = !de || r.data >= de;
+    const beforeAte = !ate || r.data <= ate;
+    const matchMot = !motId || String(r.motoristaId) === motId;
+    return afterDe && beforeAte && matchMot;
+  });
+
+  const totalPeso = filtered.reduce((a, b) => a + (parseFloat(b.peso) || 0), 0);
+  const motoristasUnicos = [...new Set(filtered.map(r => r.motoristaId))].length || 1;
+  const viagensPorMotorista = (filtered.length / motoristasUnicos).toFixed(1);
+  const entregues = filtered.filter(r => r.status === 'Entregue' || r.status === 'Finalizada').length;
+  const eficiencia = filtered.length ? Math.round((entregues / filtered.length) * 100) : 0;
+
+  document.getElementById('rel-total').textContent = filtered.length;
+  document.getElementById('rel-peso-total').textContent = totalPeso.toLocaleString('pt-BR') + ' kg';
+  document.getElementById('rel-produtividade').textContent = viagensPorMotorista;
+  document.getElementById('rel-eficiencia').textContent = eficiencia + '%';
+
+  // Chart
+  const days = {};
+  filtered.forEach(r => { days[r.data] = (days[r.data] || 0) + 1; });
+  const sortedDays = Object.entries(days).sort(([a],[b]) => a.localeCompare(b)).slice(-15);
+  const max = Math.max(...Object.values(days), 1);
+  document.getElementById('rel-chart').innerHTML = sortedDays.map(([d, c]) =>
+    `<div class="flex-1 flex flex-col items-center gap-1">
+      <span class="text-xs text-gray-500 font-mono">${c}</span>
+      <div class="chart-bar w-full" style="height:60px;position:relative;">
+        <div class="chart-fill" style="height:${Math.round((c/max)*100)}%"></div>
+      </div>
+    </div>`
+  ).join('');
+  document.getElementById('rel-chart-labels').innerHTML = sortedDays.map(([d]) =>
+    `<div class="flex-1 text-center text-xs text-gray-400">${d.slice(8)}</div>`
+  ).join('');
+
+  // Table
+  const tbody = document.getElementById('rel-table');
+  tbody.innerHTML = filtered.length === 0
+    ? '<tr><td colspan="6" class="text-center text-gray-400 py-8">Nenhum dado encontrado</td></tr>'
+    : filtered.map(r => `<tr>
+        <td class="font-mono text-xs">${r.id}</td>
+        <td>${r.motorista}</td>
+        <td><span class="font-mono text-xs bg-gray-100 px-2 py-1 rounded">${r.placa}</span></td>
+        <td class="text-xs">${r.origem} → ${r.destino}</td>
+        <td>${r.carga}</td>
+        <td>${formatDate(r.data)}</td>
+      </tr>`).join('');
+
+  // Productivity table
+  const prod = {};
+  filtered.forEach(r => {
+    const mName = r.motorista || 'Desconhecido';
+    if (!prod[mName]) prod[mName] = { trips: 0, delivered: 0 };
+    prod[mName].trips++;
+    if (r.status === 'Entregue' || r.status === 'Finalizada') prod[mName].delivered++;
+  });
+  
+  const prodTbody = document.getElementById('rel-prod-table').querySelector('tbody');
+  prodTbody.innerHTML = Object.keys(prod).length === 0
+    ? '<tr><td colspan="3" class="text-center py-4 text-gray-400">Sem dados</td></tr>'
+    : Object.entries(prod).map(([name, data]) => `
+      <tr>
+        <td class="text-sm font-medium">${name}</td>
+        <td class="text-sm">${data.trips}</td>
+        <td class="text-sm font-bold text-primary">${Math.round((data.delivered / data.trips) * 100)}%</td>
+      </tr>
+    `).join('');
+
+  // Performance Financeira (Management Report)
+  const transacoes = getStorage('tp_transacoes', []);
+  const finFiltered = transacoes.filter(t => {
+     const afterDe = !de || t.data >= de;
+     const beforeAte = !ate || t.data <= ate;
+     return afterDe && beforeAte;
+  });
+  const rRec = finFiltered.filter(t => t.tipo === 'receita').reduce((a,b)=>a+b.valor,0);
+  const rDes = finFiltered.filter(t => t.tipo === 'despesa').reduce((a,b)=>a+b.valor,0);
+  
+  document.getElementById('rel-fin-rec').textContent = rRec.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  document.getElementById('rel-fin-des').textContent = rDes.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  document.getElementById('rel-fin-margem').textContent = (rRec - rDes).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function exportarRelatorio() {
+  showToast('Exportando relatório...');
+  exportarTodosPDFs();
+}
+
+// ── Calculadora de Frete ──────────────────────────────────────
+function abrirCalculadoraFrete() {
+  document.getElementById('modal-calculadora').classList.add('open');
+}
+
+function mascaraMoeda(i) {
+  let v = i.value.replace(/\D/g,'');
+  v = (v/100).toFixed(2).replace(".", ",");
+  v = v.replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1.");
+  i.value = "R$ " + v;
+}
+
+function parseMoeda(v) {
+  if (!v) return 0;
+  return parseFloat(v.replace(/[^0-9,]/g, '').replace(',', '.')) || 0;
+}
+
+function calcularFrete() {
+  // 1. Captura e Conversão de Inputs (Tratando vazios como 0)
+  const vVeiculo = parseMoeda(document.getElementById('calc-veiculo').value);
+  const taxa = parseFloat(String(document.getElementById('calc-taxa').value).replace(',', '.')) || 0;
+  const v1 = parseMoeda(document.getElementById('calc-vaga1').value);
+  const v2 = parseMoeda(document.getElementById('calc-vaga2').value);
+  const v3 = parseMoeda(document.getElementById('calc-vaga3').value);
+  const col = parseMoeda(document.getElementById('calc-coleta').value);
+  const ent = parseMoeda(document.getElementById('calc-entrega').value);
+  const gui = parseMoeda(document.getElementById('calc-guincho').value);
+  const pat = parseMoeda(document.getElementById('calc-patio').value);
+  const out = parseMoeda(document.getElementById('calc-outros').value);
+  const doc = parseMoeda(document.getElementById('calc-doc').value);
+  const frete = parseMoeda(document.getElementById('calc-frete').value);
+
+  // 2. Cálculo do Seguro (Regra: Valor Veículo * Taxa RCTR-C)
+  const seguro = vVeiculo * taxa;
+
+  // 3. Total de Custos (Soma dos componentes operacionais + seguro)
+  const totalCustos = seguro + v1 + v2 + v3 + col + ent + gui + pat + out + doc;
+  
+  // Log de Auditoria solicitado
+  console.log(`[CÁLCULO FRETE] Composição: Seguro(${seguro}) + Vagas(${v1}+${v2}+${v3}) + Logística(${col}+${ent}) + Extras(${gui}+${pat}+${out}) + Doc(${doc}) = Total: ${totalCustos}`);
+
+  // 4. Lucro Bruto (Frete - Total de Custos)
+  const lucroBruto = frete - totalCustos;
+
+  // 5. Imposto (5% fixo sobre o Frete Total)
+  const imposto = frete * 0.05;
+
+  // 6. Lucro Líquido (Lucro Bruto - Impostos)
+  const lucroLiquido = lucroBruto - imposto;
+
+  const fmt = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  document.getElementById('res-seguro').textContent = fmt(seguro);
+  document.getElementById('res-total-custos').textContent = fmt(totalCustos);
+  document.getElementById('res-nfe').textContent = fmt(imposto);
+  document.getElementById('res-lucro').textContent = fmt(lucroBruto);
+  document.getElementById('res-lucro-fat').textContent = fmt(lucroLiquido);
+}
+
+function salvarCalculoComoOrcamento() {
+  const numero = document.getElementById('calc-numero').value.trim() || "000";
+  const cliente = document.getElementById('calc-cliente').value.trim() || "Cliente não informado";
+  const descricao = document.getElementById('calc-descricao').value.trim() || "Simulação";
+  const frete = document.getElementById('calc-frete').value;
+  
+  if (!frete || frete === 'R$ 0,00') {
+    showToast('Informe o valor do frete antes de salvar!');
+    return;
+  }
+
+  const orcamentos = getStorage('tp_orcamentos', []);
+  const novo = {
+    id: Date.now(),
+    data: new Date().toLocaleDateString('pt-BR'),
+    cli: cliente,
+    rota: descricao,
+    valor: frete,
+    status: 'Calculado',
+    detalhes: {
+      numero: numero,
+      cliente: cliente,
+      descricao: descricao,
+      vVeiculo: document.getElementById('calc-veiculo').value,
+      taxa: document.getElementById('calc-taxa').value,
+      v1: document.getElementById('calc-vaga1').value,
+      v2: document.getElementById('calc-vaga2').value,
+      v3: document.getElementById('calc-vaga3').value,
+      coleta: document.getElementById('calc-coleta').value,
+      entrega: document.getElementById('calc-entrega').value,
+      guincho: document.getElementById('calc-guincho').value,
+      patio: document.getElementById('calc-patio').value,
+      outros: document.getElementById('calc-outros').value,
+      docVal: document.getElementById('calc-doc').value,
+      frete: document.getElementById('calc-frete').value,
+      resSeguro: document.getElementById('res-seguro').textContent,
+      resCustos: document.getElementById('res-total-custos').textContent,
+      resNfe: document.getElementById('res-nfe').textContent,
+      resLucro: document.getElementById('res-lucro').textContent,
+      resLucroFat: document.getElementById('res-lucro-fat').textContent
+    }
+  };
+
+  orcamentos.push(novo);
+  setStorage('tp_orcamentos', orcamentos);
+  showToast('Cálculo armazenado em Cotações!');
+  renderOrcamentos();
+  document.getElementById('modal-calculadora').classList.remove('open');
+}
+
+function gerarPDFFrete() {
+  const dados = {
+    numero: document.getElementById('calc-numero').value.trim() || "000",
+    cliente: document.getElementById('calc-cliente').value.trim() || "Consumidor",
+    descricao: document.getElementById('calc-descricao').value.trim() || "Simulação",
+    vVeiculo: document.getElementById('calc-veiculo').value,
+    taxa: document.getElementById('calc-taxa').value,
+    v1: document.getElementById('calc-vaga1').value,
+    v2: document.getElementById('calc-vaga2').value,
+    v3: document.getElementById('calc-vaga3').value,
+    coleta: document.getElementById('calc-coleta').value,
+    entrega: document.getElementById('calc-entrega').value,
+    guincho: document.getElementById('calc-guincho').value,
+    patio: document.getElementById('calc-patio').value,
+    outros: document.getElementById('calc-outros').value,
+    docVal: document.getElementById('calc-doc').value,
+    frete: document.getElementById('calc-frete').value,
+    resSeguro: document.getElementById('res-seguro').textContent,
+    resCustos: document.getElementById('res-total-custos').textContent,
+    resNfe: document.getElementById('res-nfe').textContent,
+    resLucro: document.getElementById('res-lucro').textContent,
+    resLucroFat: document.getElementById('res-lucro-fat').textContent
+  };
+  exportarMemorialPDF(dados, false);
+}
+
+function gerarPDFOrcamento(id, baixar) {
+  const orcamentos = getStorage('tp_orcamentos', []);
+  const o = orcamentos.find(x => x.id === id);
+  if (!o || !o.detalhes) {
+    showToast('Detalhes do cálculo não encontrados para esta cotação.');
+    return;
+  }
+  exportarMemorialPDF(o.detalhes, baixar);
+}
+
+function exportarMemorialPDF(d, baixar) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFillColor(37, 99, 235);
+  doc.rect(0, 0, 210, 30, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(16); doc.setFont(undefined, 'bold');
+  doc.text('MEMORIAL DE CÁLCULO DE FRETE', 105, 15, { align: 'center' });
+  doc.setFontSize(10); doc.setFont(undefined, 'normal');
+  doc.text('Transporte PRO - Gestão Logística de Frota', 105, 22, { align: 'center' });
+  doc.setTextColor(15, 23, 42);
+
+  doc.setFontSize(10); doc.setFont(undefined, 'bold');
+  doc.text('CÁLCULO №: ' + (d.numero || '---'), 20, 38);
+  doc.text('CLIENTE: ' + (d.cliente || 'Não informado'), 20, 43);
+  doc.text('REFERÊNCIA: ' + (d.descricao || 'Simulação'), 20, 48);
+
+  let y = 55;
+  doc.setFont(undefined, 'bold'); doc.text('DADOS DE ENTRADA', 20, y); y += 10;
+  doc.setFont(undefined, 'normal');
+  [
+    ['Valor do Veículo', d.vVeiculo], ['Taxa RCTR-C', d.taxa], ['Vaga 1', d.v1], ['Vaga 2', d.v2], ['Vaga 3', d.v3],
+    ['Coleta', d.coleta], ['Entrega', d.entrega], ['Guincho', d.guincho], ['Pátio', d.patio], ['Outros Custos', d.outros], ['Documento', d.docVal],
+    ['Valor do Frete Proposto', d.frete]
+  ].forEach(([label, val]) => { doc.text(label + ':', 25, y); doc.text(val || 'R$ 0,00', 85, y); y += 7; });
+
+  y += 10;
+  doc.setFont(undefined, 'bold'); doc.text('RESUMO FINANCEIRO', 20, y); y += 10;
+  doc.setFont(undefined, 'normal');
+  [
+    ['Seguro (RCTR-C)', d.resSeguro], ['Total de Custos', d.resCustos], ['Imposto (NF-e 5%)', d.resNfe], ['Lucro Bruto', d.resLucro]
+  ].forEach(([label, val]) => { doc.text(label + ':', 25, y); doc.text(val, 85, y); y += 7; });
+
+  y += 10;
+  doc.setFillColor(241, 245, 249); doc.rect(20, y - 5, 170, 15, 'F');
+  doc.setFont(undefined, 'bold'); doc.setFontSize(12);
+  doc.text('LUCRO LÍQUIDO (FATURAMENTO):', 25, y + 5);
+  doc.setTextColor(37, 99, 235); doc.text(d.resLucroFat, 115, y + 5);
+
+  if (baixar) {
+    const nomeArquivo = 'Calc_' + (d.numero || '000') + '_' + (d.cliente || 'Frete');
+    doc.save(nomeArquivo.replace(/\s+/g, '_') + '.pdf');
+    showToast('Download concluído!');
+  } else {
+    window.open(doc.output('bloburl'), '_blank');
+    showToast('Visualização aberta!');
+  }
+}
+
+// ── Utils ────────────────────────────────────────────────────
+function formatDate(d) {
+  if (!d) return '—';
+  const [y,m,dd] = d.split('-');
+  return `${dd}/${m}/${y}`;
+}
+
+// ── Init ──────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  document.getElementById('m-data').value = new Date().toISOString().split('T')[0];
+  if (localStorage.getItem('tp_theme') === 'dark') {
+    document.body.classList.add('dark');
+    document.getElementById('theme-text').textContent = 'Modo Claro';
+  }
+  renderDashboard();
+});
+</script>
+</body>
+</html>
