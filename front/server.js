@@ -39,5 +39,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`📱 Frontend rodando em http://localhost:${PORT}`);
+  console.log(`📱 Frontend operacional na porta ${PORT}`);
 });

@@ -993,9 +993,13 @@ function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const el = document.getElementById('screen-' + name);
   
+  // Define a URL da API como a origem atual. 
+  // Em servidores reais, o front e o back compartilham o mesmo domínio/porta via Proxy.
+  const API_URL = window.location.origin;
+  window.API_URL = API_URL; 
+
   if (currentUser && !socket) {
-    const socketUrl = window.location.hostname === 'localhost' ? 'http://localhost:3001' : window.location.origin.replace(':3000', ':3001');
-    socket = io(socketUrl);
+    socket = io(); 
     socket.emit('join_room', currentUser.id);
     socket.on('receive_message', (data) => {
       // Quando recebe mensagem, busca o histórico atualizado do servidor
@@ -1060,7 +1064,7 @@ async function fazerLogin() {
   const email = document.getElementById('login-email').value;
   const senha = document.getElementById('login-senha').value;
   try {
-    const response = await fetch('http://localhost:3001/api/auth/login', {
+    const response = await fetch(`${window.API_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, senha })
@@ -1084,7 +1088,7 @@ async function cadastrarMotorista() {
   const senha = document.getElementById('cad-senha').value;
   const transportadora = document.getElementById('cad-transportadora').value;
   try {
-    const response = await fetch('http://localhost:3001/api/auth/registrar', {
+    const response = await fetch(`${window.API_URL}/api/auth/registrar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nome, email, senha, transportadora })
@@ -1194,7 +1198,7 @@ function gerarPDF() {
   };
 
   // Salvar no Banco de Dados Real
-  fetch('http://localhost:3001/api/embarques', {
+  fetch(`${window.API_URL}/api/embarques`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -1441,7 +1445,7 @@ async function renderDocumentosLogistica() {
   if (!currentUser) return;
   const el = document.getElementById('lista-documentos-log');
   try {
-    const res = await fetch(`http://localhost:3001/api/documentos/usuario/${currentUser.id}`);
+    const res = await fetch(`${window.API_URL}/api/documentos/usuario/${currentUser.id}`);
     const docs = await res.json();
     el.innerHTML = docs.length === 0
       ? '<div class="text-center text-gray-400 py-10 text-sm">Nenhum documento disponível.</div>'
@@ -1469,7 +1473,7 @@ async function uploadDocumentoSimulado(input) {
     emissor_id: currentUser.id,
     status: 'Concluído'
   };
-  await fetch('http://localhost:3001/api/documentos/upload', {
+  await fetch(`${window.API_URL}/api/documentos/upload`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -1571,7 +1575,7 @@ function renderNotificacoesLog() {
 async function carregarHistoricoLogistica() {
   if (!currentUser) return;
   try {
-    const res = await fetch(`http://localhost:3001/api/mensagens/${currentUser.id}`);
+    const res = await fetch(`${window.API_URL}/api/mensagens/${currentUser.id}`);
     const data = await res.json();
     const formatadas = data.map(m => ({
       from: m.remetente_id,

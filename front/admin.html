@@ -939,9 +939,11 @@ const PAGE_SIZE = 10;
 const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
 // ── Nav ───────────────────────────────────────────────────────
-// Conecta ao localhost em desenvolvimento ou ao servidor atual em produção
-const socketUrl = window.location.hostname === 'localhost' ? 'http://localhost:3001' : window.location.origin.replace(':3000', ':3001');
-let socket = io(socketUrl);
+// Em produção, a API geralmente reside no mesmo domínio sob o prefixo /api.
+// O Socket.io sem parâmetros conecta-se automaticamente ao host que serve o arquivo.
+const API_URL = window.location.origin; 
+const socketUrl = API_URL;
+let socket = io(); 
 socket.emit('join_room', 'admin');
 socket.on('receive_message', (data) => {
   // Recarrega se a mensagem pertencer à conversa aberta ou atualiza a lista lateral
@@ -982,7 +984,7 @@ async function goPage(name) {
 
 async function carregarUsuarios() {
   try {
-    const res = await fetch('http://localhost:3001/api/usuarios');
+    const res = await fetch(`${API_URL}/api/usuarios`);
     const data = await res.json();
     setStorage('tp_users', data);
   } catch (err) {
@@ -1210,7 +1212,7 @@ async function selecionarChat(id, nome) {
   if (nome !== "Atualizando...") document.getElementById('admin-chat-header').textContent = 'Conversando com ' + nome;
   
   try {
-    const res = await fetch(`http://localhost:3001/api/mensagens/${id}`);
+    const res = await fetch(`${API_URL}/api/mensagens/${id}`);
     const data = await res.json();
     const formatadas = data.map(m => ({
       from: m.remetente_id,
@@ -1240,7 +1242,7 @@ function enviarMsgAdmin() {
 async function renderDocumentos() {
   let docs = [];
   try {
-    const res = await fetch('http://localhost:3001/api/documentos');
+    const res = await fetch(`${API_URL}/api/documentos`);
     if (!res.ok) throw new Error();
     docs = await res.json();
     window.lastDocs = docs;
@@ -1313,7 +1315,7 @@ async function openModalEmissao(tipo) {
   let embarques = [];
   try {
     // Busca todos os embarques para permitir vínculo manual mesmo em viagens finalizadas
-    const res = await fetch('http://localhost:3001/api/embarques');
+    const res = await fetch(`${API_URL}/api/embarques`);
     embarques = await res.json();
   } catch (e) { console.warn("Aviso: Falha ao carregar embarques para vínculo."); }
   
@@ -1392,7 +1394,7 @@ async function openModalEmissao(tipo) {
     btn.textContent = 'Processando...';
 
     try {
-      const response = await fetch('http://localhost:3001/api/documentos/emitir', {
+      const response = await fetch(`${API_URL}/api/documentos/emitir`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -1925,7 +1927,7 @@ function abrirModalCadastrarFuncionario() {
     };
 
     try {
-      const res = await fetch('http://localhost:3001/api/usuarios', {
+      const res = await fetch(`${API_URL}/api/usuarios`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -1970,7 +1972,7 @@ async function abrirModalEditarFuncionario(id) {
     const salario = document.getElementById('edit-mot-salario').value;
     
     try {
-      const res = await fetch(`http://localhost:3001/api/usuarios/${id}`, {
+      const res = await fetch(`${API_URL}/api/usuarios/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cargo, salario })
