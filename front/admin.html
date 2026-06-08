@@ -11,7 +11,7 @@
 <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="http://localhost:3001/socket.io/socket.io.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
 tailwind.config = {
   darkMode: 'class',
@@ -939,7 +939,9 @@ const PAGE_SIZE = 10;
 const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
 // ── Nav ───────────────────────────────────────────────────────
-let socket = io('http://localhost:3001');
+// Conecta ao localhost em desenvolvimento ou ao servidor atual em produção
+const socketUrl = window.location.hostname === 'localhost' ? 'http://localhost:3001' : window.location.origin.replace(':3000', ':3001');
+let socket = io(socketUrl);
 socket.emit('join_room', 'admin');
 socket.on('receive_message', (data) => {
   // Recarrega se a mensagem pertencer à conversa aberta ou atualiza a lista lateral
