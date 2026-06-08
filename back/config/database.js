@@ -1,35 +1,24 @@
-/**
- * Configuração do Pool PostgreSQL
- */
-
 const { Pool } = require('pg');
+require('dotenv').config();
 
+const isProduction = process.env.NODE_ENV === 'production';
+
+// No Render, a variável DATABASE_URL é a forma correta de conexão.
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: parseInt(process.env.DATABASE_POOL_MAX || 10),
-  min: parseInt(process.env.DATABASE_POOL_MIN || 2),
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
-});
-
-// Event handlers
-pool.on('error', (err) => {
-  console.error('❌ Erro inesperado no PostgreSQL:', err);
-  process.exit(1);
+  // O Render exige SSL para conexões externas ao banco de dados gerenciado.
+  ssl: isProduction ? { rejectUnauthorized: false } : false,
 });
 
 pool.on('connect', () => {
-  console.log('✅ Nova conexão estabelecida com o banco de dados');
+  console.log('✅ Conexão com o Pool do PostgreSQL estabelecida com sucesso');
 });
 
-// Testa conexão ao iniciar
-pool.query('SELECT NOW()', (err, result) => {
-  if (err) {
-    console.error('❌ Erro de conexão com o banco:', err.message);
-    console.error('Verifique DATABASE_URL no .env.local');
-  } else {
-    console.log('✅ Conexão com o Banco de Dados estabelecida.');
-  }
+pool.on('error', (err) => {
+  console.error('❌ Erro inesperado no cliente do banco de dados:', err);
 });
 
-module.exports = pool;
+module.exports = {
+  query: (text, params) => pool.query(text, params),
+  pool,
+};
